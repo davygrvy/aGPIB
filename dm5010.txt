@@ -1,0 +1,137 @@
+DM 5010 Instrument Interfacing Guide
+
+
+
+
+
+Table 3
+ERROR QUERY AND STATUS INFORMATION
+
+Error    serial
+Query    Poll
+Abnormal Events    Response Response*
+
+Command Errors:
+
+Invalid command header		101     97
+Header delimiter error		102     97
+Argument error			103     97
+Argument delimiter error	104     97
+Missing argument		106     97
+InvaIid message unit delimiter	107     97
+
+Execution Errors:
+
+Not exutable in local mode	201	98
+Settings lost due to rtl	202	98
+Input and Output buffers full	203	98
+Argument out of range		205	98
+Group Execute Trigger ignored	206	98
+Not in caIibrate mode		231	98
+Beyond caJibratiOn Or nuIl
+capabiJity			232	98
+
+lnternaI Errors:
+
+Interrupt fauIt			301	99
+System error			302	99
+Math pack enor			303	99
+Converter time-out		311	99
+front panel time4ut		317	99
+Bad ohmt caIibration constant	318	99
+Calibration chksum error	351	99
+
+Normal Evént
+
+System Events:
+
+Power on			401	65
+Operation cOmp Iete		402	66
+I0 user request			403	67
+
+InteFnaI Waming:
+
+Over-range			601	102
+
+Device Status:
+
+Reading available		O	132
+Waiting for trigger		O	136
+Reading available and
+waiting for trigger		O	140
+Below limits			701	193
+Above limits			703	195
+No Error or Event		O	128
+
+l                       
+higher than the number listBd.
+DM 5010 Bta PFoces8ing
+
+Functions Duitt intO the DM 5010 aIIOw yOu tO Ob-
+tain answers that are already prOcessed Or rrected
+in a number of ways+ for instance. ohms readings can
+ oHset by NULL to take into account Iead resis
+tance Any reading can be scaled according tO the
+formula (x-b)a: this converts a voltage reading across
+a resistor to current if b is set tO ero and a tO the
+resistor's ohms vatue. VOItage readings can be re-
+tumed in d8 or dBr (dB cOmpared tO a reference).
+Just insert the processing command selted from the
+command table in this guide intO set-up messages
+5ent to the 0M 501 O. An example using the averaging
+function  is  shown  in  the  sample  measurement
+Pr09ram
+
+
+
+
+DM 501O Response to Interface Messages
+
+The following param sequences show various in-
+terface messages transmitted to the DM 501O.
+
+The DM 5010 respands to DCL (and SDC if listen
+addressed) by clearing its Input and Output Buffers
+and any unexecuted testing commands in its Pending
+Settings Buffer, along with any errors or events wait-
+ing to be reported (except power on)
+
+G triggers a reading in device trigger mode if the
+instrument Feceives the message while tisten ad-
+drested. It is used with the MODE TRIG and 0T TR IG
+commands.
+
+LL0 IOcks Out the operator frOm restoring locaI
+(frOnt-paneI) cOntrOl when the instrument is under re-
+mote control.
+
+GTL restores lOcaI control if the instrument re-
+ceives the message while listen addressed.
+
+S the 0M 5010 Operators Manual for a fuIJ dis-
+cussion of how the instrument responds tO interface
+messages.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+8

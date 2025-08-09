@@ -6,4 +6,33 @@
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tga;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="aGPIB.cpp" />
+    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="aGPIB.c" />
+    <ClCompile Include="aGPIBChan.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="aGPIB.h" />
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="targetver.h" />
+    <ClInclude Include="agpibDecls.h" />
+    <ClInclude Include="agpibPlatDecls.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="aGPIB.decls" />
+    <None Include="agpib_dm5010_test.tcl" />
+    <None Include="goal.tcl" />
+    <None Include="Makefile" />
+    <None Include="test.tcl" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="dm5010.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="dm5010.txt" />
+  </ItemGroup>
 </Project>
