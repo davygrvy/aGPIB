@@ -1,12 +1,14 @@
 /* --------------------------------------------------------------------
  *
- * aGPIBChan.c --
+ * aGPIBChan.cpp --
  *
  * 	'Asynchronous General Purpose Interface Buss' for Tcl.
  * 
  *	This extension adds a new channel type to Tool Command Language
  * 	that allows for easy and modern communication with devices
  * 	plugged into a GPIB buss.  Linux and Windows friendly.
+ * 
+ *	This file defines the channel interface to Tcl.
  *
  * --------------------------------------------------------------------
  * RCS: @(#) $Id: $
@@ -33,22 +35,15 @@ static Tcl_ThreadCreateProc	GpibSRQNotifier;
 static Tcl_DriverBlockModeProc	GpibBlockProc;
 static Tcl_DriverCloseProc	GpibCloseProc;
 static Tcl_DriverInputProc	GpibInputProc;
-//static Tcl_DriverGetHandleProc	GpibGetHandleProc;
 static Tcl_DriverGetOptionProc	GpibGetOptionProc;
 static Tcl_DriverOutputProc	GpibOutputProc;
 static Tcl_DriverSetOptionProc	GpibSetOptionProc;
 static Tcl_DriverWatchProc	GpibWatchProc;
-#ifdef TCL_CHANNEL_VERSION_4
 static Tcl_DriverThreadActionProc GpibThreadActionProc;
-#endif
 
 Tcl_ChannelType AgpibChannelType = {
     (char*)"gpib",	    /* Type name. */
-#ifdef TCL_CHANNEL_VERSION_4
     TCL_CHANNEL_VERSION_4,  /* TIP #218. */
-#else
-    TCL_CHANNEL_VERSION_2,  /* Old way. */
-#endif
     GpibCloseProc,	    /* Close proc. */
     GpibInputProc,	    /* Input proc. */
     GpibOutputProc,	    /* Output proc. */
@@ -58,13 +53,11 @@ Tcl_ChannelType AgpibChannelType = {
     GpibWatchProc,	    /* Set up notifier to watch this channel. */
     NULL,	    	    /* Get an OS handle from channel. */
     NULL,		    /* close2proc. */
-    GpibBlockProc,	    /* Set socket into (non-)blocking mode. */
+    GpibBlockProc,	    /* Set device into (non-)blocking mode. */
     NULL,		    /* flush proc. */
     NULL,		    /* handler proc. */
     NULL,		    /* wide seek */
-#ifdef TCL_CHANNEL_VERSION_4
     GpibThreadActionProc,   /* TIP #218. */
-#endif
 };
 
 typedef struct {
