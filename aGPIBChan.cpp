@@ -28,7 +28,7 @@ static Tcl_EventProc		GpibEventProc;
 static Tcl_EventDeleteProc	GpibRemovePendingEvents;
 static Tcl_EventDeleteProc	GpibRemoveAllPendingEvents;
 
-static GpibInfo *FindChannelFromAddr (int board_desc, Addr4882_t address);
+static GpibInfo *FindChannelFromAddr (int board_desc, GPIB::Addr4882_t address);
 static void TranslateGpibErr2Tcl(Tcl_Channel chan, int errVal);
 static Tcl_ThreadCreateProc	GpibSRQNotifier;
 
@@ -62,7 +62,7 @@ Tcl_ChannelType AgpibChannelType = {
 
 typedef struct {
     int board_desc;
-    Addr4882_t *addressList[];
+    GPIB::Addr4882_t *addressList[];
 } BrdInfo;
 
 static GpibInfo *start;
@@ -70,7 +70,7 @@ static GpibInfo *start;
 static GpibInfo *
 FindChannelFromAddr (
     int board_desc,
-    Addr4882_t address)
+    GPIB::Addr4882_t address)
 {
     //GpibInfo *temp;
 
@@ -89,22 +89,22 @@ GpibSRQNotifier (ClientData clientData)
      * Statically build the complete 1-to-30 primary address sweep list.
      * Needs 32 elements: 30 addresses + 1 secondary slot safety + NOADDR terminator.
      */
-    static Addr4882_t allBusAddresses[32];
+    static GPIB::Addr4882_t allBusAddresses[32];
     
     for (int i = 0; i < 30; i++) {
-        allBusAddresses[i] = (Addr4882_t)(i + 1); // Addresses 1 through 30
+        allBusAddresses[i] = (GPIB::Addr4882_t)(i + 1); // Addresses 1 through 30
     }
-    allBusAddresses[30] = NOADDR; // Mark the end of the array
+    allBusAddresses[30] = GPIB::NOADDR; // Mark the end of the array
      
     // Allocate space for the matching status byte output array
     short statusList[32]; 
 
 again:
-    /* Sleep until any device pulls the physical SRQ line low */
-    WaitSRQ(brdInfoPtr->board_desc, &result);
+    /* Sleep until until timeout any device pulls the physical SRQ line low */
+    GPIB::WaitSRQ(brdInfoPtr->board_desc, &result);
 
-    if (ThreadIbsta() & ERR) {
-	/* bad error or the board went offline partially */
+    if (GPIB::ThreadIbsta() & GPIB::ERR) {
+	/* bad error or the board went offline (we can't trust result) */
 	goto done;
     }
     
@@ -118,12 +118,12 @@ again:
              * Sweep every single address on the bus in one fast hardware call.
              * This reads and CLEARS the SRQ line for BOTH known and unknown instruments.
              */
-            AllSpoll(brdInfoPtr->board_desc, allBusAddresses, statusList);
+            GPIB::AllSpoll(brdInfoPtr->board_desc, allBusAddresses, statusList);
             
             /* Process the results */
-            for (int i = 0; allBusAddresses[i] != NOADDR; i++) {
-                /* Did this address request service? (Bit 6 / 0x40 RQS Flag) */
-                if (statusList[i] & 0x40) {
+            for (int i = 0; allBusAddresses[i] != GPIB::NOADDR; i++) {
+                /* Did this address request service? (Bit 11 / 0x800 RQS Flag) */
+                if (statusList[i] & GPIB::RQS) {
                     
                     /* Resolve the channel */
                     infoPtr = FindChannelFromAddr(brdInfoPtr->board_desc, allBusAddresses[i]);
@@ -152,78 +152,78 @@ TranslateGpibErr2Tcl(
     const char *msg = NULL;
 
     switch (errVal) {
-	case EFSO:
-	case EDVR:
+	case GPIB::EFSO:
+	case GPIB::EDVR:
 	    /*
 	     * A system call or file system call has failed. ibcnt/ibcntl will
 	     * be set to the value of errno.
 	     */
-	    Tcl_SetErrno(ThreadIbcnt());  /* force this for windows, just in case */
+	    Tcl_SetErrno(GPIB::ThreadIbcnt());  /* force this for windows, just in case */
 	    return;
 
-	case ECIC:
+	case GPIB::ECIC:
 	    msg = "Your interface board needs to be Controller-In-Charge, but "
 	     	  "is not.";
 	    break;
 
-	case ENOL:
+	case GPIB::ENOL:
 	    msg = "You have attempted to write data or command bytes, but "
 		  "there are no listeners currently addressed.";
 	    break;
 
-	case EADR:
+	case GPIB::EADR:
 	    msg = "The interface board has failed to address itself properly "
 		  "before starting an i/o operation.";
 	    break;
 
-	case EARG:
+	case GPIB::EARG:
 	    /*
 	     * One or more arguments to the function call were invalid.
 	     */
 	    Tcl_SetErrno(EINVAL);
 	    return;
 
-	case ESAC:
+	case GPIB::ESAC:
 	    msg = "The interface board needs to be system controller, but "
 		  "is not.";
 	    break;
 
-	case EABO:
+	case GPIB::EABO:
 	    msg = "A read or write of data bytes has been aborted, possibly "
 		  "due to a timeout or reception of a device clear command.";
 	    break;
 
-	case ENEB:
+	case GPIB::ENEB:
 	    msg = "The GPIB interface board does not exist, its driver is "
 		  "not loaded, or it is not configured properly.";
 	    break;
 
-	case EDMA:
+	case GPIB::EDMA:
 	    msg = "DMA error.";
 	    break;
 
-	case EOIP:
+	case GPIB::EOIP:
 	    msg = "Function call can not proceed due to an asynchronous "
 		  "IO operation (ibrda(), ibwrta(), or ibcmda()) in progress.";
 	    break;
 
-	case ECAP:
+	case GPIB::ECAP:
 	    msg = "Incapable of executing function call, due the GPIB board "
 		  "lacking the capability, or the capability being disabled in "
 		  "software.";
 	    break;
 
-	case EBUS:
+	case GPIB::EBUS:
 	    msg = "An attempt to write command bytes to the bus has timed out.";
 	    break;
 
-	case ESTB:
+	case GPIB::ESTB:
 	    msg = "One or more serial poll status bytes have been lost. "
 		  "This can occur due to too many status bytes accumulating "
 		  "(through automatic serial polling) without being read.";
 	    break;
 
-	case ESRQ:
+	case GPIB::ESRQ:
 	    msg = "The serial poll request service line is stuck on. This "
 		  "can occur if a physical device on the bus requests "
 		  "service, but its GPIB address has not been opened (via "
@@ -232,7 +232,7 @@ TranslateGpibErr2Tcl(
 		  "existence and will never serial poll it.";
 	    break;
 
-	case ETAB:
+	case GPIB::ETAB:
 	    msg = "This error can be returned by ibevent(), FindLstn(), or "
 		  "FindRQS(). See their descriptions for more information.";
 	    break;
@@ -246,7 +246,7 @@ GpibCloseProc (
     ClientData instanceData,	/* The GPIB device state. */
     Tcl_Interp *interp)		/* Unused. */
 {
-    //GpibInfo *infoPtr = (GpibInfo *) instanceData;
+    GpibInfo *infoPtr = (GpibInfo *) instanceData;
     int errorCode = 0;
 
     /* TODO */
@@ -263,21 +263,30 @@ GpibInputProc (
 {
     GpibInfo *infoPtr = (GpibInfo *) instanceData;
     *errorCodePtr = 0;
+    int status;
 
-    Receive(infoPtr->ud, infoPtr->addr, buf, (long)toRead, infoPtr->term);
+    GPIB::Receive(infoPtr->ud, infoPtr->addr, buf, (long)toRead, infoPtr->term);
+    status = GPIB::ThreadIbsta();
 
-    if (ThreadIbsta() && ERR) {
-	TranslateGpibErr2Tcl(infoPtr->chan, ThreadIberr());
+    if (status & GPIB::ERR) {
+	TranslateGpibErr2Tcl(infoPtr->chan, GPIB::ThreadIberr());
 	*errorCodePtr = Tcl_GetErrno();
 	return -1;
-    } else if (ThreadIbsta() && TIMO) {
-	/* TODO: not sure on this */
-	Tcl_SetErrno(EWOULDBLOCK);
+    }
+ 
+    else if (status & GPIB::TIMO) {
+	if (infoPtr->mode == TCL_MODE_BLOCKING) {
+	    Tcl_SetErrno(ETIMEDOUT);
+	} else {
+	    Tcl_SetErrno(EWOULDBLOCK);
+	}
 	*errorCodePtr = Tcl_GetErrno();
 	return -1;
-    } else {
+    }
+    
+    else {
 	/* return how much we read */
-	return ThreadIbcnt();
+	return GPIB::ThreadIbcnt();
     }
 }
 
@@ -290,27 +299,36 @@ GpibOutputProc (
 {
     GpibInfo *infoPtr = (GpibInfo *) instanceData;
     *errorCodePtr = 0;
+    int status;
 
 
-    if (0/*TclInExit() || infoPtr->flags & IOCP_CLOSING*/) {
+    if (TclInExit() || (infoPtr->flags & CLOSING)) {
 	*errorCodePtr = ENOTCONN;
 	return -1;
     }
 
-    Send(infoPtr->ud, infoPtr->addr, buf, (long)toWrite, infoPtr->eot_mode);
+    GPIB::Send(infoPtr->ud, infoPtr->addr, buf, (long)toWrite, infoPtr->eot_mode);
+    status = GPIB::ThreadIbsta();
 
-    if (ThreadIbsta() && ERR) {
-	TranslateGpibErr2Tcl(infoPtr->chan, ThreadIberr());
+    if (status & GPIB::ERR) {
+	TranslateGpibErr2Tcl(infoPtr->chan, GPIB::ThreadIberr());
 	*errorCodePtr = Tcl_GetErrno();
 	return -1;
-    } else if (ThreadIbsta() && TIMO) {
-	/* TODO: not sure on this */
-	Tcl_SetErrno(EWOULDBLOCK);
+    }
+    
+    else if (status & GPIB::TIMO) {
+	if (infoPtr->mode == TCL_MODE_BLOCKING) {
+	    Tcl_SetErrno(ETIMEDOUT);
+	} else {
+	    Tcl_SetErrno(EWOULDBLOCK);
+	}
 	*errorCodePtr = Tcl_GetErrno();
 	return -1;
-    } else {
+    }
+    
+    else {
 	/* return how much we wrote */
-	return ThreadIbcnt();
+	return GPIB::ThreadIbcnt();
     }
 }
 
@@ -362,41 +380,41 @@ GpibGetOptionProc (
             Tcl_DStringAppendElement(dsPtr, "-timeout");
         }
 	switch (infoPtr->timeout) {
-	case TNONE:
+	case GPIB::TNONE:
 	    Tcl_DStringAppendElement(dsPtr, "none"); break;
-	case T10us:
+	case GPIB::T10us:
 	    Tcl_DStringAppendElement(dsPtr, "10us"); break;
-	case T30us:
+	case GPIB::T30us:
 	    Tcl_DStringAppendElement(dsPtr, "30us"); break;
-	case T100us:
+	case GPIB::T100us:
 	    Tcl_DStringAppendElement(dsPtr, "100us"); break;
-	case T300us:
+	case GPIB::T300us:
 	    Tcl_DStringAppendElement(dsPtr, "300us"); break;
-	case T1ms:
+	case GPIB::T1ms:
 	    Tcl_DStringAppendElement(dsPtr, "1ms"); break;
-	case T3ms:
+	case GPIB::T3ms:
 	    Tcl_DStringAppendElement(dsPtr, "3ms"); break;
-	case T10ms:
+	case GPIB::T10ms:
 	    Tcl_DStringAppendElement(dsPtr, "10ms"); break;
-	case T30ms:
+	case GPIB::T30ms:
 	    Tcl_DStringAppendElement(dsPtr, "30ms"); break;
-	case T100ms:
+	case GPIB::T100ms:
 	    Tcl_DStringAppendElement(dsPtr, "100ms"); break;
-	case T300ms:
+	case GPIB::T300ms:
 	    Tcl_DStringAppendElement(dsPtr, "300ms"); break;
-	case T1s:
+	case GPIB::T1s:
 	    Tcl_DStringAppendElement(dsPtr, "1s"); break;
-	case T3s:
+	case GPIB::T3s:
 	    Tcl_DStringAppendElement(dsPtr, "3s"); break;
-	case T10s:
+	case GPIB::T10s:
 	    Tcl_DStringAppendElement(dsPtr, "10s"); break;
-	case T30s:
+	case GPIB::T30s:
 	    Tcl_DStringAppendElement(dsPtr, "30s"); break;
-	case T100s:
+	case GPIB::T100s:
 	    Tcl_DStringAppendElement(dsPtr, "100s"); break;
-	case T300s:
+	case GPIB::T300s:
 	    Tcl_DStringAppendElement(dsPtr, "300s"); break;
-	case T1000s:
+	case GPIB::T1000s:
 	    Tcl_DStringAppendElement(dsPtr, "1000s"); break;
 	}
 	if (len > 0) return TCL_OK;
@@ -427,12 +445,12 @@ GpibBlockProc (
 {
     GpibInfo *infoPtr = (GpibInfo *) instanceData;
 
-    //if (!initialized) return 0;
+    infoPtr->mode = mode;
 
     if (mode == TCL_MODE_NONBLOCKING) {
-	ibtmo(infoPtr->ud, infoPtr->timeout);
+	GPIB::ibtmo(infoPtr->ud, TNONE);
     } else {
-	ibtmo(infoPtr->ud, TNONE);
+	GPIB::ibtmo(infoPtr->ud, infoPtr->timeout);
     }
     return 0;
 }

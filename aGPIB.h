@@ -28,10 +28,27 @@
 #ifndef RC_INVOKED
 
 #ifdef __WINDOWS__
-#   include <ni488.h>		/* The National Instruments interface. */
+#   ifdef __cplusplus
+namespace GPIB {
+    extern "C" {
+#       include <ni488.h>		/* The National Instruments interface. */
+    }
+}
+#   else
+#       include <ni488.h>		/* The National Instruments interface. */
+#   endif
 #else
-#   include <gpib/ib.h>		/* The Linux-GPIB FOSS interface. */
-#   include <errno.h>
+#   ifdef __cplusplus
+namespace GPIB {
+    extern "C" {
+#       include <gpib/ib.h>		/* The Linux-GPIB FOSS interface. */
+    }
+}
+#       include <errno.h>
+#   else
+#       include <gpib/ib.h>		/* The Linux-GPIB FOSS interface. */
+#       include <errno.h>
+#   endif
 #endif
 
 #undef TCL_STORAGE_CLASS
