@@ -123,7 +123,7 @@ again:
 
 	    } else {
 		/* device not known or not open..  bad juju going on here */
-		asm ("nop");
+		;
 	    }
 	    goto again;
     }
