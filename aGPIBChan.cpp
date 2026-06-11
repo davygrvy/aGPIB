@@ -79,54 +79,67 @@ FindChannelFromAddr (
 }
 
 static Tcl_ThreadCreateType
-GpibSRQNotifier (
-    ClientData clientData)
+GpibSRQNotifier (ClientData clientData)
 {
     BrdInfo *brdInfoPtr = (BrdInfo *) clientData;
     GpibInfo *infoPtr;
-    short result, status, index;
+    short result;
+    
+    /* 
+     * Statically build the complete 1-to-30 primary address sweep list.
+     * Needs 32 elements: 30 addresses + 1 secondary slot safety + NOADDR terminator.
+     */
+    static Addr4882_t allBusAddresses[32];
+    
+    for (int i = 0; i < 30; i++) {
+        allBusAddresses[i] = (Addr4882_t)(i + 1); // Addresses 1 through 30
+    }
+    allBusAddresses[30] = NOADDR; // Mark the end of the array
+     
+    // Allocate space for the matching status byte output array
+    short statusList[32]; 
 
 again:
-    /* Wait on this board */
+    /* Sleep until any device pulls the physical SRQ line low */
     WaitSRQ(brdInfoPtr->board_desc, &result);
 
-    switch (result) {
-	case 0:  /* timed-out */
-
-	    /* are we done? */
-	    if (0) goto done;
-	    goto again;
-
-	case 1:  /* SRQ of this board has been asserted */
-
-	    /*
-	     * What device is responsible and grab its status byte
-	     */
-	    FindRQS(brdInfoPtr->board_desc, *(brdInfoPtr->addressList), &status);
-	    index = ThreadIbcnt();
-	    if (index != 0) {
-
-		/*
-		 * Resolve the channel info struct from the gpib address.
-		 */
-		infoPtr = FindChannelFromAddr(brdInfoPtr->board_desc,
-			*(brdInfoPtr->addressList)[index-1]);
-
-		/* save the status byte to the device's STB queue */
-		infoPtr->STB_Q.push_back(status);
-
-		/*
-		 * Cause the Tcl notifier in the channel's target thread to
-		 * check its event sources.
-		 */
-		Tcl_ThreadAlert(infoPtr->thrd);
-
-	    } else {
-		/* device not known or not open..  bad juju going on here */
-		;
-	    }
-	    goto again;
+    if (ThreadIbsta() & ERR) {
+	/* bad error or the board went offline partially */
+	goto done;
     }
+    
+    switch (result) {
+        case 0: /* timed-out */
+            if (shutdown) goto done;
+            goto again;
+            
+        case 1: /* SRQ Asserted! */
+            /* 
+             * Sweep every single address on the bus in one fast hardware call.
+             * This reads and CLEARS the SRQ line for BOTH known and unknown instruments.
+             */
+            AllSpoll(brdInfoPtr->board_desc, allBusAddresses, statusList);
+            
+            /* Process the results */
+            for (int i = 0; allBusAddresses[i] != NOADDR; i++) {
+                /* Did this address request service? (Bit 6 / 0x40 RQS Flag) */
+                if (statusList[i] & 0x40) {
+                    
+                    /* Resolve the channel */
+                    infoPtr = FindChannelFromAddr(brdInfoPtr->board_desc, allBusAddresses[i]);
+                    
+                    if (infoPtr != NULL) {
+                        /* Active channel found: Push the status byte and wake the Tcl notifier */
+                        infoPtr->STB_Q.push_back(statusList[i]);
+                        Tcl_ThreadAlert(infoPtr->thrd);
+                    } else {
+                        /* Rouge device disarmed! */
+                    }
+                }
+            }
+            goto again;
+    }
+    
 done:
     TCL_THREAD_CREATE_RETURN;
 }
