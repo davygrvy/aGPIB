@@ -84,8 +84,8 @@ GpibSRQNotifier (ClientData clientData)
     BrdInfo *brdInfoPtr = (BrdInfo *) clientData;
     GpibInfo *infoPtr;
     short result;
-    static GPIB::Addr4882_t allBusAddresses[32];
-    short statusList[32]; 
+    GPIB::Addr4882_t allBusAddresses[GPIB::gpib_addr_max+1];
+    short statusList[GPIB::gpib_addr_max+1]; 
 
     for (int i = 0; i < GPIB::gpib_addr_max; i++) {
         allBusAddresses[i] = GPIB::MakeAddr(i + 1, 0); // Addresses 1 through 30
@@ -140,97 +140,10 @@ done:
 static void
 TranslateGpibErr2Tcl(
     Tcl_Channel chan,
-    int errVal)
+    int ibErr)
 {
-    const char *msg = NULL;
-
-    switch (errVal) {
-	case GPIB::EFSO:
-	case GPIB::EDVR:
-	    /*
-	     * A system call or file system call has failed. ibcnt/ibcntl will
-	     * be set to the value of errno.
-	     */
-	    Tcl_SetErrno(GPIB::ThreadIbcnt());  /* force this for windows, just in case */
-	    return;
-
-	case GPIB::ECIC:
-	    msg = "ECIC: Your interface board needs to be Controller-In-Charge, but "
-	     	  "is not.";
-	    break;
-
-	case GPIB::ENOL:
-	    msg = "ENOL: You have attempted to write data or command bytes, but "
-		  "there are no listeners currently addressed.";
-	    break;
-
-	case GPIB::EADR:
-	    msg = "EADR: The interface board has failed to address itself properly "
-		  "before starting an i/o operation.";
-	    break;
-
-	case GPIB::EARG:
-	    /*
-	     * One or more arguments to the function call were invalid.
-	     */
-	    Tcl_SetErrno(EINVAL);
-	    return;
-
-	case GPIB::ESAC:
-	    msg = "ESAC: The interface board needs to be system controller, but "
-		  "is not.";
-	    break;
-
-	case GPIB::EABO:
-	    msg = "EABO: A read or write of data bytes has been aborted, possibly "
-		  "due to a timeout or reception of a device clear command.";
-	    break;
-
-	case GPIB::ENEB:
-	    msg = "ENEB: The GPIB interface board does not exist, its driver is "
-		  "not loaded, or it is not configured properly.";
-	    break;
-
-	case GPIB::EDMA:
-	    msg = "EDMA: DMA error.";
-	    break;
-
-	case GPIB::EOIP:
-	    msg = "EOIP: Function call can not proceed due to an asynchronous "
-		  "IO operation (ibrda(), ibwrta(), or ibcmda()) in progress.";
-	    break;
-
-	case GPIB::ECAP:
-	    msg = "ECAP: Incapable of executing function call, due the GPIB board "
-		  "lacking the capability, or the capability being disabled in "
-		  "software.";
-	    break;
-
-	case GPIB::EBUS:
-	    msg = "EBUS: An attempt to write command bytes to the bus has timed out.";
-	    break;
-
-	case GPIB::ESTB:
-	    msg = "ESTB: One or more serial poll status bytes have been lost. "
-		  "This can occur due to too many status bytes accumulating "
-		  "(through automatic serial polling) without being read.";
-	    break;
-
-	case GPIB::ESRQ:
-	    msg = "ESRQ: The serial poll request service line is stuck on. This "
-		  "can occur if a physical device on the bus requests "
-		  "service, but its GPIB address has not been opened (via "
-		  "ibdev() for example) by any process. Thus the automatic "
-		  "serial polling routines are unaware of the device's "
-		  "existence and will never serial poll it.";
-	    break;
-
-	case GPIB::ETAB:
-	    msg = "ETAB: This error can be returned by ibevent(), FindLstn(), or "
-		  "FindRQS(). See their descriptions for more information.";
-	    break;
-    }
-    Tcl_SetChannelError(chan, Tcl_NewStringObj(msg, -1));
+    Tcl_SetChannelError(chan, Tcl_NewStringObj(
+	    GPIB::gpib_error_string(ibErr), -1));
 }
 
 static int
@@ -239,7 +152,7 @@ GpibCloseProc (
     Tcl_Interp *interp)		/* Unused. */
 {
     GpibInfo *infoPtr = (GpibInfo *) instanceData;
-    int errorCode = 0;
+    int errorCode = TCL_NOERROR;
     int status;
 
      if (infoPtr != NULL) {
@@ -252,8 +165,7 @@ GpibCloseProc (
             errorCode = Tcl_GetErrno();
         }
 
-        ckfree((char *) infoPtr);
-    }
+     }
 
     return errorCode;
 }
@@ -469,8 +381,6 @@ GpibThreadActionProc (ClientData instanceData, int action)
 {
      GpibInfo *infoPtr = (GpibInfo *) instanceData;
 
-    Tcl_MutexLock(&(infoPtr->mutex));
-
     switch (action) {
         case TCL_CHANNEL_THREAD_INSERT:
             // Safely assign the new thread owner context
@@ -483,8 +393,6 @@ GpibThreadActionProc (ClientData instanceData, int action)
             infoPtr->thrd = NULL;
             break;
     }
-
-    Tcl_MutexUnlock(&(infoPtr->mutex));
 }
 
 int
