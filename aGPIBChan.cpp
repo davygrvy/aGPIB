@@ -87,11 +87,11 @@ GpibSRQNotifier (ClientData clientData)
     static GPIB::Addr4882_t allBusAddresses[32];
     short statusList[32]; 
 
-    for (int i = 0; i < 30; i++) {
-        allBusAddresses[i] = (GPIB::Addr4882_t)(i + 1); // Addresses 1 through 30
+    for (int i = 0; i < GPIB::gpib_addr_max; i++) {
+        allBusAddresses[i] = GPIB::MakeAddr(i + 1, 0); // Addresses 1 through 30
     }
-    allBusAddresses[30] = GPIB::NOADDR; // Mark the end of the array
-     
+    allBusAddresses[GPIB::gpib_addr_max] = GPIB::NOADDR; // Mark the end of the array
+
 again:
     /* Sleep until timeout or any device pulls the physical SRQ line low */
     GPIB::WaitSRQ(brdInfoPtr->board_desc, &result);
@@ -243,10 +243,8 @@ GpibCloseProc (
     int status;
 
      if (infoPtr != NULL) {
-        // 1. Prevent further I/O by updating state flags
         infoPtr->flags |= AGPIB_CLOSING;
 
-        // 2. Take the GPIB board/device offline and release the descriptor.
         status = GPIB::ibonl(infoPtr->ud, 0);
         
         if (status & GPIB::ERR) {
@@ -254,8 +252,6 @@ GpibCloseProc (
             errorCode = Tcl_GetErrno();
         }
 
-        // 3. Free the channel tracking structure safely
-        // (Use ckfree instead of free if you allocated via Tcl_Alloc/ckalloc)
         ckfree((char *) infoPtr);
     }
 
