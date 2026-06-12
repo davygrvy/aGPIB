@@ -84,23 +84,16 @@ GpibSRQNotifier (ClientData clientData)
     BrdInfo *brdInfoPtr = (BrdInfo *) clientData;
     GpibInfo *infoPtr;
     short result;
-    
-    /* 
-     * Statically build the complete 1-to-30 primary address sweep list.
-     * Needs 32 elements: 30 addresses + 1 secondary slot safety + NOADDR terminator.
-     */
     static GPIB::Addr4882_t allBusAddresses[32];
-    
+    short statusList[32]; 
+
     for (int i = 0; i < 30; i++) {
         allBusAddresses[i] = (GPIB::Addr4882_t)(i + 1); // Addresses 1 through 30
     }
     allBusAddresses[30] = GPIB::NOADDR; // Mark the end of the array
      
-    // Allocate space for the matching status byte output array
-    short statusList[32]; 
-
 again:
-    /* Sleep until until timeout any device pulls the physical SRQ line low */
+    /* Sleep until timeout or any device pulls the physical SRQ line low */
     GPIB::WaitSRQ(brdInfoPtr->board_desc, &result);
 
     if (GPIB::ThreadIbsta() & GPIB::ERR) {
@@ -221,7 +214,10 @@ TranslateGpibErr2Tcl(
 	    msg = "ESTB: One or more serial poll status bytes have been lost. "
 		  "This can occur due to too many status bytes accumulating "
 		  "(through automatic serial polling) without being read.";
-	    break;
+	    break;    if (TclInExit() || (infoPtr->flags & AGPIB_CLOSING)) {
+	*errorCodePtr = ENOTCONN;
+	return -1;
+
 
 	case GPIB::ESRQ:
 	    msg = "ESRQ: The serial poll request service line is stuck on. This "
@@ -248,8 +244,24 @@ GpibCloseProc (
 {
     GpibInfo *infoPtr = (GpibInfo *) instanceData;
     int errorCode = 0;
+    int status;
 
-    /* TODO */
+     if (infoPtr != NULL) {
+        // 1. Prevent further I/O by updating state flags
+        infoPtr->flags |= AGPIB_CLOSING;
+
+        // 2. Take the GPIB board/device offline and release the descriptor.
+        status = GPIB::ibonl(infoPtr->ud, 0);
+        
+        if (status & GPIB::ERR) {
+            Tcl_SetErrno(EIO);
+            errorCode = Tcl_GetErrno();
+        }
+
+        // 3. Free the channel tracking structure safely
+        // (Use ckfree instead of free if you allocated via Tcl_Alloc/ckalloc)
+        ckfree((char *) infoPtr);
+    }
 
     return errorCode;
 }
@@ -265,6 +277,11 @@ GpibInputProc (
     *errorCodePtr = 0;
     int status;
 
+    if (TclInExit() || (infoPtr->flags & AGPIB_CLOSING)) {
+	*errorCodePtr = ENOTCONN;
+    	return -1;
+    }
+
     GPIB::Receive(infoPtr->ud, infoPtr->addr, buf, (long)toRead, infoPtr->term);
     status = GPIB::ThreadIbsta();
 
@@ -275,9 +292,6 @@ GpibInputProc (
     }
  
     else if (status & GPIB::TIMO) {
-	/* Clear addressing state so we don't leave a mess */
-	ibstop(infoPtr->ud);
-
 	if (infoPtr->mode == TCL_MODE_BLOCKING) {
 	    Tcl_SetErrno(ETIMEDOUT);
 	} else {
@@ -305,7 +319,7 @@ GpibOutputProc (
     int status;
 
 
-    if (TclInExit() || (infoPtr->flags & CLOSING)) {
+    if (TclInExit() || (infoPtr->flags & AGPIB_CLOSING)) {
 	*errorCodePtr = ENOTCONN;
 	return -1;
     }
@@ -320,9 +334,6 @@ GpibOutputProc (
     }
     
     else if (status & GPIB::TIMO) {
-	/* Clear addressing state so we don't leave a mess */
-	ibstop(infoPtr->ud);
-
 	if (infoPtr->mode == TCL_MODE_BLOCKING) {
 	    Tcl_SetErrno(ETIMEDOUT);
 	} else {
@@ -454,35 +465,35 @@ GpibBlockProc (
     infoPtr->mode = mode;
 
     if (mode == TCL_MODE_NONBLOCKING) {
-	GPIB::ibtmo(infoPtr->ud, TNONE);
+	GPIB::ibtmo(infoPtr->ud, GPIB::TNONE);
     } else {
 	GPIB::ibtmo(infoPtr->ud, infoPtr->timeout);
     }
     return 0;
 }
 
-#ifdef TCL_CHANNEL_VERSION_4
 static void
 GpibThreadActionProc (ClientData instanceData, int action)
 {
-    GpibInfo *infoPtr = (GpibInfo *) instanceData;
+     GpibInfo *infoPtr = (GpibInfo *) instanceData;
 
-    //if (initialized) {
-	/* This lock is to prevent IocpZapTclNotifier() from accessing
-	* infoPtr->tsdHome */
-	//EnterCriticalSection(&infoPtr->tsdLock);
-	switch (action) {
-	case TCL_CHANNEL_THREAD_INSERT:
-	    infoPtr->thrd = Tcl_GetCurrentThread();
-	    break;
-	case TCL_CHANNEL_THREAD_REMOVE:
-	    /* Unable to turn off RQS checking, therefore don't do anything and hope we don't have a collision */
-	    break;
-	}
-	//LeaveCriticalSection(&infoPtr->tsdLock);
-    //}
+    Tcl_MutexLock(&(infoPtr->mutex));
+
+    switch (action) {
+        case TCL_CHANNEL_THREAD_INSERT:
+            // Safely assign the new thread owner context
+            infoPtr->thrd = Tcl_GetCurrentThread();
+            break;
+
+        case TCL_CHANNEL_THREAD_REMOVE:
+            // Clear out the pointer so background processes 
+            // know this thread no longer owns it
+            infoPtr->thrd = NULL;
+            break;
+    }
+
+    Tcl_MutexUnlock(&(infoPtr->mutex));
 }
-#endif
 
 int
 InitializeGpibSubSystem()
