@@ -162,17 +162,17 @@ TranslateGpibErr2Tcl(
 	    return;
 
 	case GPIB::ECIC:
-	    msg = "Your interface board needs to be Controller-In-Charge, but "
+	    msg = "ECIC: Your interface board needs to be Controller-In-Charge, but "
 	     	  "is not.";
 	    break;
 
 	case GPIB::ENOL:
-	    msg = "You have attempted to write data or command bytes, but "
+	    msg = "ENOL: You have attempted to write data or command bytes, but "
 		  "there are no listeners currently addressed.";
 	    break;
 
 	case GPIB::EADR:
-	    msg = "The interface board has failed to address itself properly "
+	    msg = "EADR: The interface board has failed to address itself properly "
 		  "before starting an i/o operation.";
 	    break;
 
@@ -184,47 +184,47 @@ TranslateGpibErr2Tcl(
 	    return;
 
 	case GPIB::ESAC:
-	    msg = "The interface board needs to be system controller, but "
+	    msg = "ESAC: The interface board needs to be system controller, but "
 		  "is not.";
 	    break;
 
 	case GPIB::EABO:
-	    msg = "A read or write of data bytes has been aborted, possibly "
+	    msg = "EABO: A read or write of data bytes has been aborted, possibly "
 		  "due to a timeout or reception of a device clear command.";
 	    break;
 
 	case GPIB::ENEB:
-	    msg = "The GPIB interface board does not exist, its driver is "
+	    msg = "ENEB: The GPIB interface board does not exist, its driver is "
 		  "not loaded, or it is not configured properly.";
 	    break;
 
 	case GPIB::EDMA:
-	    msg = "DMA error.";
+	    msg = "EDMA: DMA error.";
 	    break;
 
 	case GPIB::EOIP:
-	    msg = "Function call can not proceed due to an asynchronous "
+	    msg = "EOIP: Function call can not proceed due to an asynchronous "
 		  "IO operation (ibrda(), ibwrta(), or ibcmda()) in progress.";
 	    break;
 
 	case GPIB::ECAP:
-	    msg = "Incapable of executing function call, due the GPIB board "
+	    msg = "ECAP: Incapable of executing function call, due the GPIB board "
 		  "lacking the capability, or the capability being disabled in "
 		  "software.";
 	    break;
 
 	case GPIB::EBUS:
-	    msg = "An attempt to write command bytes to the bus has timed out.";
+	    msg = "EBUS: An attempt to write command bytes to the bus has timed out.";
 	    break;
 
 	case GPIB::ESTB:
-	    msg = "One or more serial poll status bytes have been lost. "
+	    msg = "ESTB: One or more serial poll status bytes have been lost. "
 		  "This can occur due to too many status bytes accumulating "
 		  "(through automatic serial polling) without being read.";
 	    break;
 
 	case GPIB::ESRQ:
-	    msg = "The serial poll request service line is stuck on. This "
+	    msg = "ESRQ: The serial poll request service line is stuck on. This "
 		  "can occur if a physical device on the bus requests "
 		  "service, but its GPIB address has not been opened (via "
 		  "ibdev() for example) by any process. Thus the automatic "
@@ -233,7 +233,7 @@ TranslateGpibErr2Tcl(
 	    break;
 
 	case GPIB::ETAB:
-	    msg = "This error can be returned by ibevent(), FindLstn(), or "
+	    msg = "ETAB: This error can be returned by ibevent(), FindLstn(), or "
 		  "FindRQS(). See their descriptions for more information.";
 	    break;
     }
@@ -275,6 +275,9 @@ GpibInputProc (
     }
  
     else if (status & GPIB::TIMO) {
+	/* Clear addressing state so we don't leave a mess */
+	ibstop(infoPtr->ud);
+
 	if (infoPtr->mode == TCL_MODE_BLOCKING) {
 	    Tcl_SetErrno(ETIMEDOUT);
 	} else {
@@ -317,6 +320,9 @@ GpibOutputProc (
     }
     
     else if (status & GPIB::TIMO) {
+	/* Clear addressing state so we don't leave a mess */
+	ibstop(infoPtr->ud);
+
 	if (infoPtr->mode == TCL_MODE_BLOCKING) {
 	    Tcl_SetErrno(ETIMEDOUT);
 	} else {
