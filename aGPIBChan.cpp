@@ -214,10 +214,7 @@ TranslateGpibErr2Tcl(
 	    msg = "ESTB: One or more serial poll status bytes have been lost. "
 		  "This can occur due to too many status bytes accumulating "
 		  "(through automatic serial polling) without being read.";
-	    break;    if (TclInExit() || (infoPtr->flags & AGPIB_CLOSING)) {
-	*errorCodePtr = ENOTCONN;
-	return -1;
-
+	    break;
 
 	case GPIB::ESRQ:
 	    msg = "ESRQ: The serial poll request service line is stuck on. This "
@@ -234,7 +231,6 @@ TranslateGpibErr2Tcl(
 	    break;
     }
     Tcl_SetChannelError(chan, Tcl_NewStringObj(msg, -1));
-    return;
 }
 
 static int
