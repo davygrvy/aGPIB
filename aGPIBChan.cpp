@@ -84,21 +84,23 @@ GpibSRQNotifier (ClientData clientData)
     BrdInfo *brdInfoPtr = (BrdInfo *) clientData;
     GpibInfo *infoPtr;
     short result;
-    GPIB::Addr4882_t allBusAddresses[GPIB::gpib_addr_max+1];
-    short statusList[GPIB::gpib_addr_max+1]; 
+    // Explicitly size arrays: 30 valid primary addresses + 1 slot for NOADDR termination
+#define MAX_GPIB_DEVICES (GPIB::gpib_addr_max) 
+    GPIB::Addr4882_t allBusAddresses[MAX_GPIB_DEVICES+1];
+    short statusList[MAX_GPIB_DEVICES+1]; 
 
-    for (int i = 0; i < GPIB::gpib_addr_max; i++) {
-        allBusAddresses[i] = GPIB::MakeAddr(i + 1, 0); // Addresses 1 through 30
+    for (int i = 0; i < MAX_GPIB_DEVICES; i++) {
+        allBusAddresses[i] = GPIB::MakeAddr(i+1, 0); // Addresses 1 through 30
     }
-    allBusAddresses[GPIB::gpib_addr_max] = GPIB::NOADDR; // Mark the end of the array
+    allBusAddresses[MAX_GPIB_DEVICES] = GPIB::NOADDR; // Mark the end of the array
 
 again:
     /* Sleep until timeout or any device pulls the physical SRQ line low */
     GPIB::WaitSRQ(brdInfoPtr->board_desc, &result);
 
     if (GPIB::ThreadIbsta() & GPIB::ERR) {
-	/* bad error or the board went offline (we can't trust result) */
-	goto done;
+        /* bad error or the board went offline (we can't trust result) */
+        goto done;
     }
     
     switch (result) {
@@ -115,18 +117,18 @@ again:
             
             /* Process the results */
             for (int i = 0; allBusAddresses[i] != GPIB::NOADDR; i++) {
-                /* Did this address request service? (Bit 11 / 0x800 RQS Flag) */
-                if (statusList[i] & GPIB::RQS) {
+                /* Does this address request service? (Bit 6 / 0x40 RQS Flag) */
+                if (statusList[i] & GPIB::IB_STB_RQS) {
                     
                     /* Resolve the channel */
                     infoPtr = FindChannelFromAddr(brdInfoPtr->board_desc, allBusAddresses[i]);
                     
                     if (infoPtr != NULL) {
                         /* Active channel found: Push the status byte and wake the Tcl notifier */
-                        infoPtr->STB_Q.push_back(statusList[i]);
+                        infoPtr->STB_Q.push_back((statusList[i] & ~GPIB::IB_STB_RQS));
                         Tcl_ThreadAlert(infoPtr->thrd);
                     } else {
-                        /* Rouge device disarmed! */
+                        /* Rouge device disarmed!  Address cleared from bus, safely ignored */
                     }
                 }
             }
