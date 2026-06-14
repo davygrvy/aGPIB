@@ -103,12 +103,13 @@ struct _GpibInfo;
 
 struct _GpibInfo {
     Tcl_Channel chan;   /* us! */
-    int ud;		/* board or device descriptor */
+    int board_desc;
+    int ud;		/* device descriptor */
     Addr4882_t addr;	/* device address */
     int eot_mode;
     int term;		/* termination character */
     int timeout;
-    short STB_Q;
+    short STB_Q;  /* TODO, needs to be a threadsafe std::queue<short> or somesuch*/
     Tcl_ThreadId thrd;	/* notifier thread this channel belongs to */
     struct _GpibInfo *next;	/* link chain */
 };

@@ -18,8 +18,11 @@
 #include "aGPIB.h"
 #include <string.h>
 
+// globals to be moved later
+static int                  InitializeGpibSubSystem(Tcl_Interp *interp);
+
+
 /* local prototypes */
-static int			InitializeGpibSubSystem();
 static Tcl_ExitProc	        GpibExitHandler;
 static Tcl_ExitProc	        GpibThreadExitHandler;
 static Tcl_EventSetupProc	GpibEventSetupProc;
@@ -29,7 +32,7 @@ static Tcl_EventDeleteProc	GpibRemovePendingEvents;
 static Tcl_EventDeleteProc	GpibRemoveAllPendingEvents;
 
 static GpibInfo *FindChannelFromAddr (int board_desc, GPIB::Addr4882_t address);
-static void TranslateGpibErr2Tcl(Tcl_Channel chan, int errVal);
+static void TranslateGpibErr2Tcl(Tcl_Channel chan, int ibErr);
 static Tcl_ThreadCreateProc       GpibSRQNotifier;
 
 static Tcl_DriverBlockModeProc    GpibBlockProc;
@@ -60,26 +63,37 @@ Tcl_ChannelType AgpibChannelType = {
     GpibThreadActionProc, /* TIP #218. */
 };
 
+/* file scope */
+static GpibInfo *start = NULL;
+static bool shutdown = false;
+
+
 typedef struct {
     int board_desc;
-    GPIB::Addr4882_t *addressList[];
+    //GPIB::Addr4882_t *addressList[];
 } BrdInfo;
 
-static GpibInfo *start;
 
-static GpibInfo *
-FindChannelFromAddr (
-    int board_desc,
-    GPIB::Addr4882_t address)
-{
-    //GpibInfo *temp;
 
-    /* TODO */
-    return NULL;
-}
+
+/* --------------------------------------------------------------------
+ *
+ * GpibSRQNotifier --
+ *
+ *      This is our notifier routine to service interrupts.  It is run
+ *      in a thread.
+ *
+ * 	params --
+ *       clientData:
+ *             a BrdInfo pointer that contains the board to run on.
+ *
+ * --------------------------------------------------------------------
+ */
+
 
 static Tcl_ThreadCreateType
-GpibSRQNotifier (ClientData clientData)
+GpibSRQNotifier (
+    ClientData clientData)      /* The GPIB board to watch */
 {
     BrdInfo *brdInfoPtr = (BrdInfo *) clientData;
     GpibInfo *infoPtr;
@@ -87,50 +101,64 @@ GpibSRQNotifier (ClientData clientData)
     GPIB::Addr4882_t allBusAddresses[GPIB::gpib_addr_max+1];
     short statusList[GPIB::gpib_addr_max+1]; 
 
-    for (int i = 0; i < GPIB::gpib_addr_max; i++) {
-        allBusAddresses[i] = GPIB::MakeAddr(i+1, 0); // Addresses 1 through 30
+    /* Fill the array with all addresses */
+    for (int i = 0; i < GPIB::gpib_addr_max; i++)
+            allBusAddresses[i] = GPIB::MakeAddr(i+1, 0); /* 1 to 30 */
+    allBusAddresses[GPIB::gpib_addr_max] = GPIB::NOADDR;
+
+    /* Set a 3 second timeout */
+    GPIB::ibtmo(brdInfoPtr->board_desc, GPIB::T3s);
+
+    if (GPIB::ThreadIbsta() & GPIB::ERR) {
+        /* Bad error */
+        goto done;
     }
-    allBusAddresses[GPIB::gpib_addr_max] = GPIB::NOADDR; // Mark the end of the array
 
 again:
     /* Sleep until timeout or any device pulls the physical SRQ line low */
     GPIB::WaitSRQ(brdInfoPtr->board_desc, &result);
 
     if (GPIB::ThreadIbsta() & GPIB::ERR) {
-        /* bad error or the board went offline (we can't trust result) */
+        /* Bad error or the board went offline (we can't trust result) */
         goto done;
     }
-    
+
     switch (result) {
-        case 0: /* timed-out */
-            if (shutdown) goto done;
-            goto again;
-            
-        case 1: /* SRQ Asserted! */
-            /* 
-             * Sweep every single address on the bus in one fast hardware call.
-             * This reads and CLEARS the SRQ line for BOTH known and unknown instruments.
-             */
-            GPIB::AllSpoll(brdInfoPtr->board_desc, allBusAddresses, statusList);
-            
-            /* Process the results */
-            for (int i = 0; allBusAddresses[i] != GPIB::NOADDR; i++) {
-                /* Does this address request service? (Bit 6 / 0x40 RQS Flag) */
-                if (statusList[i] & GPIB::IB_STB_RQS) {
-                    
-                    /* Resolve the channel */
-                    infoPtr = FindChannelFromAddr(brdInfoPtr->board_desc, allBusAddresses[i]);
-                    
-                    if (infoPtr != NULL) {
-                        /* Active channel found: Push the status byte and wake the Tcl notifier */
-                        infoPtr->STB_Q.push_back((statusList[i] & ~GPIB::IB_STB_RQS));
-                        Tcl_ThreadAlert(infoPtr->thrd);
-                    } else {
-                        /* Rouge device disarmed!  Address cleared from bus, safely ignored */
-                    }
+    case 0: /* Timed-out */
+        if (shutdown) goto done;    /* clean exit */
+        goto again;
+
+    case 1: /* SRQ Asserted */
+        /* Sweep every address on the buss. This reads and CLEARS the SRQ line
+         * for BOTH known and unknown instruments. */
+        GPIB::AllSpoll(brdInfoPtr->board_desc, allBusAddresses, statusList);
+
+        /* Process the results */
+        for (int i = 0; allBusAddresses[i] != GPIB::NOADDR; i++) {
+
+            /* Does this address request service? (Bit 6 / 0x40 RQS Flag) */
+            if (statusList[i] & GPIB::IbStbRQS) {
+
+                /* Resolve to our channel */
+                infoPtr = FindChannelFromAddr(brdInfoPtr->board_desc,
+                        allBusAddresses[i]);
+
+                if (infoPtr != NULL) {
+                    /* Active channel found: Push the status byte,
+                     * filter out RQS flag from STB. */
+                    infoPtr->STB_Q.push_back(
+                            (statusList[i] & ~GPIB::IbStbRQS));
+
+                    /* Wake the Tcl notifier to service (at least)
+                     * this channel's event source. */
+                    Tcl_ThreadAlert(infoPtr->thrd);
+                } else {
+                    /* Rouge device disarmed! */
+                    ((void)0);
                 }
             }
-            goto again;
+        }
+        goto again;
     }
     
 done:
@@ -139,11 +167,11 @@ done:
 
 static void
 TranslateGpibErr2Tcl(
-    Tcl_Channel chan,
-    int ibErr)
+    Tcl_Channel chan,           /* The channel */
+    int ibErr)                  /* The GPIB error code */
 {
     Tcl_SetChannelError(chan, Tcl_NewStringObj(
-	    GPIB::gpib_error_string(ibErr), -1));
+	        GPIB::gpib_error_string(ibErr), -1));
 }
 
 static int
@@ -152,7 +180,7 @@ GpibCloseProc (
     Tcl_Interp *interp)	        /* Unused. */
 {
     GpibInfo *infoPtr = (GpibInfo *) instanceData;
-    int errorCode = TCL_NOERROR;
+    int errorCode = TCL_OK;
     int status;
 
     if (infoPtr != NULL) {
@@ -178,15 +206,15 @@ GpibInputProc (
     int *errorCodePtr)        /* Where to store errno codes. */
 {
     GpibInfo *infoPtr = (GpibInfo *) instanceData;
-    *errorCodePtr = 0;
+    *errorCodePtr = TCL_OK;
     int status;
 
-    if (TclInExit() || (infoPtr->flags & AGPIB_CLOSING)) {
+    if ((infoPtr->flags & AGPIB_CLOSING) || TclInExit()) {
 	    *errorCodePtr = ENOTCONN;
     	return -1;
     }
 
-    GPIB::Receive(infoPtr->ud, infoPtr->addr, buf, (long)toRead, infoPtr->term);
+    GPIB::Receive(infoPtr->ud, infoPtr->addr, buf, (long)toRead, GPIB::STOPend/*infoPtr->term*/);
     status = GPIB::ThreadIbsta();
 
     if (status & GPIB::ERR) {
@@ -205,10 +233,8 @@ GpibInputProc (
 	    return -1;
     }
     
-    else {
-	    /* return how much we read */
-	    return GPIB::ThreadIbcnt();
-    }
+    /* return how much we read */
+    return GPIB::ThreadIbcnt();
 }
 
 static int
@@ -219,16 +245,16 @@ GpibOutputProc (
     int *errorCodePtr)        /* Where to store errno codes. */
 {
     GpibInfo *infoPtr = (GpibInfo *) instanceData;
-    *errorCodePtr = 0;
+    *errorCodePtr = TCL_OK;
     int status;
 
 
-    if (TclInExit() || (infoPtr->flags & AGPIB_CLOSING)) {
+    if ((infoPtr->flags & AGPIB_CLOSING) || TclInExit()) {
 	    *errorCodePtr = ENOTCONN;
 	    return -1;
     }
 
-    GPIB::Send(infoPtr->ud, infoPtr->addr, buf, (long)toWrite, infoPtr->eot_mode);
+    GPIB::Send(infoPtr->ud, infoPtr->addr, buf, (long)toWrite, GPIB::DABend/*infoPtr->eot_mode*/);
     status = GPIB::ThreadIbsta();
 
     if (status & GPIB::ERR) {
@@ -238,19 +264,17 @@ GpibOutputProc (
     }
     
     else if (status & GPIB::TIMO) {
-	    if (infoPtr->mode == TCL_MODE_BLOCKING) {
-	        Tcl_SetErrno(ETIMEDOUT);
-	    } else {
+	    if (infoPtr->mode == TCL_MODE_NONBLOCKING) {
 	        Tcl_SetErrno(EWOULDBLOCK);
+	    } else {
+	        Tcl_SetErrno(ETIMEDOUT);
 	    }
 	    *errorCodePtr = Tcl_GetErrno();
 	    return -1;
     }
     
-    else {
-	    /* return how much we wrote */
-	    return GPIB::ThreadIbcnt();
-    }
+    /* return how much we wrote */
+    return GPIB::ThreadIbcnt();
 }
 
 static int
@@ -260,24 +284,24 @@ GpibSetOptionProc (
     CONST char *optionName,     /* Name of the option to set. */
     CONST char *value)          /* New value for option. */
 {
-    //GpibInfo *infoPtr = (GpibInfo *) instanceData;
+    GpibInfo *infoPtr = (GpibInfo *) instanceData;
 
     // TODO
-    
+
     return Tcl_BadChannelOption(interp, optionName,
 		"spoll timeout");
 }
 
 static int
 GpibGetOptionProc (
-    ClientData instanceData,/* The GPIB device state. */
-    Tcl_Interp *interp,		/* For error reporting - can be NULL */
-    CONST char *optionName,	/* Name of the option to
-				             * retrieve the value for, or
-                 			 * NULL to get all options and
-				             * their values. */
-    Tcl_DString *dsPtr)		/* Where to store the computed
-				             * value; initialized by caller. */
+    ClientData instanceData,    /* The GPIB device state. */
+    Tcl_Interp *interp,		    /* For error reporting - can be NULL */
+    CONST char *optionName,	    /* Name of the option to
+				                 * retrieve the value for, or
+                 			     * NULL to get all options and
+				                 * their values. */
+    Tcl_DString *dsPtr)		    /* Where to store the computed
+				                 * value; initialized by caller. */
 {
     GpibInfo *infoPtr = (GpibInfo *) instanceData;
     short int result;
@@ -373,7 +397,7 @@ GpibBlockProc (
     infoPtr->mode = mode;
 
     if (mode == TCL_MODE_NONBLOCKING) {
-	    GPIB::ibtmo(infoPtr->ud, GPIB::TNONE);
+	    GPIB::ibtmo(infoPtr->ud, GPIB::T10us);
     } else {
 	    GPIB::ibtmo(infoPtr->ud, infoPtr->timeout);
     }
@@ -402,11 +426,69 @@ GpibThreadActionProc (
 }
 
 int
-InitializeGpibSubSystem()
+InitializeGpibSubSystem(Tcl_Interp *interp)
 {
-    // TODO
-    return 0;
+    /* TODO */
+
+    //  Nothing really do here, actually.  This is called once per
+    //  Tcl interp loading via 'package require agpib'.
+    //  Dynamic loading of ni488.dll could happen here on windows, I guess
+
+    return TCL_OK;
 }
+
+static GpibInfo *
+FindChannelFromAddr (
+    int board_desc,
+    GPIB::Addr4882_t addr)
+{
+    GpibInfo *temp;
+
+    /* TODO: this needs work */
+    for (temp = start; temp != NULL; temp = temp->next) {
+        if ((temp->board_desc == board_desc) && (GetPAD(temp->addr) == GetPAD(addr))) {
+            return temp;
+        }
+    }
+
+    return NULL;
+}
+
+GpibInfo *
+NewGPIBInfo()
+{
+    GpibInfo *infoPtr = ckalloc(sizeof(GpibInfo));
+
+    /* splice it in */
+    //Tcl_MutexLock()
+    infoPtr->next = start;
+    start = infoPtr;
+    //Tcl_MutexUnlock()
+     
+    /* add defaults */
+    infoPtr->chan = NULL;
+    infoPtr->mode = TCL_MODE_NONBLOCKING;
+    infoPtr->board_desc = 0;
+    infoPtr->ud = 0;
+    infoPtr->addr = 0;
+    infoPtr->eot_mode = GPIB::DABend;
+    infoPtr->timeout = GPIB::T300us;
+    infoPtr->STB_Q = 0;   /* TODO, needs to be a threadsafe std::queue<short> or somesuch*/
+    infoPtr->thrd = Tcl_GetCurrentThread();
+
+    return inforPtr;
+}
+
+void
+DeleteGPIBInfo(GpibInfo *infoPtr)
+{
+    /* unsplice it */
+    //Tcl_MutexLock()
+    //TODO
+    //Tcl_MutexUnlock()
+    ckfree(infoPtr);
+}
+
 void
 GpibExitHandler(ClientData clientData)
 {
