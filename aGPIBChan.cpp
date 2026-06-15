@@ -489,6 +489,177 @@ DeleteGPIBInfo(GpibInfo *infoPtr)
     ckfree(infoPtr);
 }
 
+/*
+ *-----------------------------------------------------------------------
+ * GpibEventSetupProc --
+ *
+ *  Happens before the event loop is to wait in the notifier.
+ *
+ *-----------------------------------------------------------------------
+ */
+static void
+GpibEventSetupProc (
+    ClientData clientData,
+    int flags)
+{
+    //ThreadSpecificData *tsdPtr = InitSockets();
+    Tcl_Time blockTime = {0, 0};
+
+    if (!(flags & TCL_FILE_EVENTS)) {
+        return;
+    }
+
+    /*
+     * If any ready events exist now, don't let the notifier go into it's
+     * wait state.  This function call is very inexpensive.
+     */
+
+     /* TODO */
+    //if (IocpLLIsNotEmpty(tsdPtr->readySockets)) {
+    //    Tcl_SetMaxBlockTime(&blockTime);
+    //}
+}
+
+/*
+ *-----------------------------------------------------------------------
+ * GpibEventCheckProc --
+ *
+ *  Happens after the notifier has waited.
+ *
+ *-----------------------------------------------------------------------
+ */
+static void
+GpibEventCheckProc (
+    ClientData clientData,
+    int flags)
+{
+#if 0
+    ThreadSpecificData *tsdPtr = InitSockets();
+    SocketInfo *infoPtr;
+    SocketEvent *evPtr;
+    int evCount;
+
+    if (!(flags & TCL_FILE_EVENTS)) {
+        /* Don't be greedy. */
+        return;
+    }
+
+    /*
+     * Sockets that are EOF, but not yet closed, are considered readable.
+     * Because Tcl historically requires that EOF channels shall still
+     * fire readable and writable events until closed and our alert
+     * semantics are such that we'll never get repeat notifications after
+     * EOF, we place this poll condition here.
+     */
+
+    /* TODO: evCount = IocpLLGetCount(tsdPtr->deadSockets); */
+
+    /*
+     * Do we have any jobs to queue?  Take a snapshot of the count as
+     * of now.
+     */
+
+    evCount = IocpLLGetCount(tsdPtr->readySockets);
+
+    while (evCount--) {
+        EnterCriticalSection(&tsdPtr->readySockets->lock);
+        infoPtr = IocpLLPopFront(tsdPtr->readySockets,
+                IOCP_LL_NOLOCK | IOCP_LL_NODESTROY, 0);
+        /*
+         * Flop the markedReady toggle.  This is used to improve event
+         * loop efficiency to avoid unneccesary events being queued into
+         * the readySockets list.
+         */
+        if (infoPtr) InterlockedExchange(&infoPtr->markedReady, 0);
+        LeaveCriticalSection(&tsdPtr->readySockets->lock);
+
+        /*
+         * Safety check. Somehow the count of what is and what actually
+         * is, is less (!?)..  whatever...  
+         */
+        if (!infoPtr) continue;
+
+        /*
+         * The socket isn't ready to be serviced.  accept() in the Tcl
+         * layer hasn't happened yet while reads on the new socket are
+         * coming in or the socket is in the middle of doing an async
+         * close.
+         */
+        if (infoPtr->channel == NULL) {
+            continue;
+        }
+
+        evPtr = (SocketEvent *) ckalloc(sizeof(SocketEvent));
+        evPtr->header.proc = GpibEventProc;
+        evPtr->infoPtr = infoPtr;
+        Tcl_QueueEvent((Tcl_Event *) evPtr, TCL_QUEUE_TAIL);
+    }
+#endif
+}
+
+/*
+ *-----------------------------------------------------------------------
+ * GpibEventProc --
+ *
+ *  Tcl's event loop is now servicing this.
+ *
+ *-----------------------------------------------------------------------
+ */
+static int
+GpibEventProc (
+    Tcl_Event *evPtr,               /* Event to service. */
+    int flags)                      /* Flags that indicate what events to
+                                     * handle, such as TCL_FILE_EVENTS. */
+{
+#if 0
+    SocketInfo *infoPtr = ((SocketEvent *)evPtr)->infoPtr;
+    int readyMask = 0;
+
+    if (!(flags & TCL_FILE_EVENTS)) {
+        /* Don't be greedy. */
+        return 0;
+    }
+
+    /*
+     * If an accept is ready, pop one only.  There might be more,
+     * but this would be greedy with regards to the event loop.
+     */
+    if (infoPtr->readyAccepts != NULL) {
+        IocpAcceptOne(infoPtr);
+        return 1;
+    }
+
+    /*
+     * If there is at least one entry on the infoPtr->llPendingRecv list,
+     * and the watch mask is set to notify for readable events, the channel
+     * is readable.
+     */
+    if (infoPtr->watchMask & TCL_READABLE &&
+            IocpLLIsNotEmpty(infoPtr->llPendingRecv)) {
+        readyMask |= TCL_READABLE;
+    }
+
+    /*
+     * If the watch mask is set to notify for writable events, and
+     * outstanding sends are less than the resource cap allowed for
+     * this socket, the channel is writable.
+     */
+    if (infoPtr->watchMask & TCL_WRITABLE && infoPtr->llPendingRecv
+            && infoPtr->outstandingSends < infoPtr->outstandingSendCap) {
+        readyMask |= TCL_WRITABLE;
+    }
+
+    if (readyMask) {
+        Tcl_NotifyChannel(infoPtr->channel, readyMask);
+    } else {
+        /* This was a useless queue.  I want to know why! */
+        __asm nop;
+    }
+    return 1;
+#endif
+}
+
+
 void
 GpibExitHandler(ClientData clientData)
 {
