@@ -1,7 +1,7 @@
 package require agpib
 
 # open the device on address 16 of the first board
-set chan [agpib::open -brd 0 -dev 16]
+set chan [agpib::open -brd 0 -pad 16]
 
 # set channel options
 fconfigure $chan -term eio -timeout 300ms -blocking no
@@ -14,11 +14,11 @@ puts ">DM5010: [read $chan]"
 set cmds {init; acv; dig 4.5; rqs on; opc on; monitor on; mode run}
 puts $chan $cmds; puts "<DM5010: $cmds"
 
-# set the readable script to return the STB from the reulting RQS
-fileevent $chan readable \
-        [list read_dmm $chan [subst -noc {[fconfigure $chan -stb]}]]
+# set the exception script to return the STB from the reulting RQS/SRQ
+fileevent $chan exception \
+        [list dmm_stb $chan [subst -noc {[fconfigure $chan -stb]}]]
 
-proc read_dmm {chan stb} {
+proc dmm_stb {chan stb} {
    switch -- $stb {
        65 {#power on}
        67 {puts "you pressed the 'inst id' key"}

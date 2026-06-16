@@ -34,6 +34,7 @@ static Tcl_EventDeleteProc	GpibRemoveAllPendingEvents;
 static GpibInfo *FindChannelFromAddr (int board_desc, GPIB::Addr4882_t address);
 static void TranslateGpibErr2Tcl(Tcl_Channel chan, int ibErr);
 static Tcl_ThreadCreateProc       GpibSRQNotifier;
+void   GpibZapTclNotifier   (GpibInfo *infoPtr, short stb);
 
 static Tcl_DriverBlockModeProc    GpibBlockProc;
 static Tcl_DriverCloseProc        GpibCloseProc;
@@ -46,7 +47,7 @@ static Tcl_DriverThreadActionProc GpibThreadActionProc;
 
 Tcl_ChannelType AgpibChannelType = {
     (char*)"gpib",	      /* Type name. */
-    TCL_CHANNEL_VERSION_4,/* TIP #218. */
+    TCL_CHANNEL_VERSION_5,/* TIP #562 (mandatory) */
     GpibCloseProc,	      /* Close proc. */
     GpibInputProc,	      /* Input proc. */
     GpibOutputProc,	      /* Output proc. */
@@ -60,7 +61,8 @@ Tcl_ChannelType AgpibChannelType = {
     NULL,                 /* flush proc. */
     NULL,                 /* handler proc. */
     NULL,                 /* wide seek */
-    GpibThreadActionProc, /* TIP #218. */
+    GpibThreadActionProc, /* thread move proc */
+    NULL,                 /* truncate proc */
 };
 
 /* file scope */
@@ -89,7 +91,6 @@ typedef struct {
  *
  * --------------------------------------------------------------------
  */
-
 
 static Tcl_ThreadCreateType
 GpibSRQNotifier (
@@ -129,7 +130,7 @@ again:
         goto again;
 
     case 1: /* SRQ Asserted */
-        /* Sweep every address on the buss. This reads and CLEARS the SRQ line
+        /* Sweep every address on the bus . This reads and CLEARS the SRQ line
          * for BOTH known and unknown instruments. */
         GPIB::AllSpoll(brdInfoPtr->board_desc, allBusAddresses, statusList);
 
@@ -145,13 +146,9 @@ again:
 
                 if (infoPtr != NULL) {
                     /* Active channel found: Push the status byte,
-                     * filter out RQS flag from STB. */
-                    infoPtr->STB_Q.push_back(
-                            (statusList[i] & ~GPIB::IbStbRQS));
-
-                    /* Wake the Tcl notifier to service (at least)
-                     * this channel's event source. */
-                    Tcl_ThreadAlert(infoPtr->thrd);
+                     * filter out RQS flag from STB. and alert Tcl */
+                    GpibZapTclNotifier(infoPtr,
+                            (statusList[i] & ~GPIB::IbStbRQS));                    
                 } else {
                     /* Rouge device disarmed! */
                     ((void)0);
@@ -163,6 +160,18 @@ again:
     
 done:
     TCL_THREAD_CREATE_RETURN;
+}
+
+static void
+GpibZapTclNotifier (
+    GpibInfo *infoPtr,
+    short stb)
+{
+    /* TODO: add this infoPtr to the ready queue for GpibEventCheckProc */
+
+    /* Wake the Tcl notifier to service (at least)
+     * this channel's event source. */
+    Tcl_ThreadAlert(infoPtr->thrd);
 }
 
 static void
@@ -510,7 +519,7 @@ GpibEventSetupProc (
     }
 
     /*
-     * If any ready events exist now, don't let the notifier go into it's
+     * If any ready events exist now, don't let the notifier go into its
      * wait state.  This function call is very inexpensive.
      */
 
