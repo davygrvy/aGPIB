@@ -144,11 +144,10 @@ again:
                 infoPtr = FindChannelFromAddr(brdInfoPtr->board_desc,
                         allBusAddresses[i]);
 
-                if (infoPtr != NULL) {
+                if ((infoPtr != NULL) && (infoPtr->mask & TCL_EXCEPTION)) {
                     /* Active channel found: Push the status byte,
-                     * filter out RQS flag from STB. and alert Tcl */
-                    GpibZapTclNotifier(infoPtr,
-                            (statusList[i] & ~GPIB::IbStbRQS));                    
+                     * and alert Tcl */
+                    GpibZapTclNotifier(infoPtr, statusList[i]);                    
                 } else {
                     /* Rouge device disarmed! */
                     ((void)0);
@@ -167,7 +166,7 @@ GpibZapTclNotifier (
     GpibInfo *infoPtr,
     short stb)
 {
-    /* TODO: add this infoPtr to the ready queue for GpibEventCheckProc */
+    infoPtr->STB_Q.push_front((std::uint8_t)stb);
 
     /* Wake the Tcl notifier to service (at least)
      * this channel's event source. */

@@ -109,7 +109,7 @@ struct _GpibInfo {
     int eot_mode;
     int term;		/* termination character */
     int timeout;
-    short STB_Q;  /* TODO, needs to be a threadsafe std::queue<short> or somesuch*/
+    std:queue<std::uint8_t> STB_Q;  /* TODO, needs to be a threadsafe std::queue<short> or somesuch*/
     Tcl_ThreadId thrd;	/* notifier thread this channel belongs to */
     struct _GpibInfo *next;	/* link chain */
 };
