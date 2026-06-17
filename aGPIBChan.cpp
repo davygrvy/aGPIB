@@ -109,7 +109,14 @@ GpibSRQNotifier (
 
     /* Set a 3 second timeout */
     GPIB::ibtmo(brdInfoPtr->board_desc, GPIB::T3s);
+    if (GPIB::ThreadIbsta() & GPIB::ERR) {
+        /* Bad error */
+        goto done;
+    }
 
+    /* Disable automatic polling (The NI 488.2 driver does this by
+     * default, so unset) */
+    GPIB::ibconfig(brdInfoPtr->board_desc, GPIB::IbcAUTOPOLL, 0);
     if (GPIB::ThreadIbsta() & GPIB::ERR) {
         /* Bad error */
         goto done;
@@ -118,7 +125,6 @@ GpibSRQNotifier (
 again:
     /* Sleep until timeout or any device pulls the physical SRQ line low */
     GPIB::WaitSRQ(brdInfoPtr->board_desc, &result);
-
     if (GPIB::ThreadIbsta() & GPIB::ERR) {
         /* Bad error or the board went offline (we can't trust result) */
         goto done;
