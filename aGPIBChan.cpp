@@ -23,46 +23,46 @@ static int                  InitializeGpibSubSystem(Tcl_Interp *interp);
 
 
 /* local prototypes */
-static Tcl_ExitProc	        GpibExitHandler;
-static Tcl_ExitProc	        GpibThreadExitHandler;
-static Tcl_EventSetupProc	GpibEventSetupProc;
-static Tcl_EventCheckProc	GpibEventCheckProc;
-static Tcl_EventProc		GpibEventProc;
-static Tcl_EventDeleteProc	GpibRemovePendingEvents;
-static Tcl_EventDeleteProc	GpibRemoveAllPendingEvents;
+static Tcl_ExitProc		AgpibExitHandler;
+static Tcl_ExitProc		AgpibThreadExitHandler;
+static Tcl_EventSetupProc	AgpibEventSetupProc;
+static Tcl_EventCheckProc	AgpibEventCheckProc;
+static Tcl_EventProc		AgpibEventProc;
+static Tcl_EventDeleteProc	AgpibRemovePendingEvents;
+static Tcl_EventDeleteProc	AgpibRemoveAllPendingEvents;
 
 static GpibInfo *FindChannelFromAddr (int board_desc, GPIB::Addr4882_t address);
 static void TranslateGpibErr2Tcl(Tcl_Channel chan, int ibErr);
-static Tcl_ThreadCreateProc       GpibSRQNotifier;
-void   GpibZapTclNotifier   (GpibInfo *infoPtr, short stb);
+static Tcl_ThreadCreateProc       AgpibSRQNotifier;
+void   ZapTclNotifier   (GpibInfo *infoPtr, short stb);
 
-static Tcl_DriverBlockModeProc    GpibBlockProc;
-static Tcl_DriverCloseProc        GpibCloseProc;
-static Tcl_DriverInputProc        GpibInputProc;
-static Tcl_DriverGetOptionProc    GpibGetOptionProc;
-static Tcl_DriverOutputProc       GpibOutputProc;
-static Tcl_DriverSetOptionProc    GpibSetOptionProc;
-static Tcl_DriverWatchProc        GpibWatchProc;
-static Tcl_DriverThreadActionProc GpibThreadActionProc;
+static Tcl_DriverBlockModeProc	    AgpibBlockProc;
+static Tcl_DriverClose2Proc	    AgpibCloseProc;
+static Tcl_DriverInputProc	    AgpibInputProc;
+static Tcl_DriverGetOptionProc	    AgpibGetOptionProc;
+static Tcl_DriverOutputProc	    AgpibOutputProc;
+static Tcl_DriverSetOptionProc	    AgpibSetOptionProc;
+static Tcl_DriverWatchProc	    AgpibWatchProc;
+static Tcl_DriverThreadActionProc   AgpibThreadActionProc;
 
 Tcl_ChannelType AgpibChannelType = {
-    (char*)"gpib",	      /* Type name. */
-    TCL_CHANNEL_VERSION_5,/* TIP #562 (mandatory) */
-    GpibCloseProc,	      /* Close proc. */
-    GpibInputProc,	      /* Input proc. */
-    GpibOutputProc,	      /* Output proc. */
-    NULL,                 /* Seek proc. */
-    GpibSetOptionProc,    /* Set option proc. */
-    GpibGetOptionProc,    /* Get option proc. */
-    GpibWatchProc,        /* Set up notifier to watch this channel. */
-    NULL,                 /* Get an OS handle from channel. */
-    NULL,                 /* close2proc. */
-    GpibBlockProc,        /* Set device into (non-)blocking mode. */
-    NULL,                 /* flush proc. */
-    NULL,                 /* handler proc. */
-    NULL,                 /* wide seek */
-    GpibThreadActionProc, /* thread move proc */
-    NULL,                 /* truncate proc */
+    (char*)"gpib",	    /* Type name. */
+    TCL_CHANNEL_VERSION_5,  /* TIP #562 (mandatory) */
+    NULL,		    /* Close proc. */
+    AgpibInputProc,	    /* Input proc. */
+    AgpibOutputProc,	    /* Output proc. */
+    NULL,		    /* Seek proc. */
+    AgpibSetOptionProc,	    /* Set option proc. */
+    AgpibGetOptionProc,	    /* Get option proc. */
+    AgpibWatchProc,	    /* Set up notifier to watch this channel. */
+    NULL,		    /* Get an OS handle from channel. */
+    AgpibClose2Proc,	    /* close2proc. */
+    AgpibBlockProc,	    /* Set device into (non-)blocking mode. */
+    NULL,		    /* flush proc. */
+    NULL,		    /* handler proc. */
+    NULL,		    /* wide seek */
+    AgpibThreadActionProc,  /* thread move proc */
+    NULL,		    /* truncate proc */
 };
 
 /* file scope */
@@ -75,25 +75,73 @@ typedef struct {
     //GPIB::Addr4882_t *addressList[];
 } BrdInfo;
 
+Tcl_Channel
+Agpib_CreateChannel (
+    int board_index,
+    int pad,
+    int sad)
+{
+    GpibInfo *infoPtr;
+    Tcl_Channel chan;
+    int result;
+    char channelName[4 + TCL_INTEGER_SPACE];
 
+    // TODO
+
+    infoPtr->ud = GPIB::ibdev(board_index, pad, sad, GPIB::T300ms, 1, 0);
+    if (result == -1) {
+	// TODO
+	return NULL;
+    }
+
+    infoPtr = NewGPIBInfo();
+
+	//TODO start notifier thread, if needed.
+    {
+	Tcl_ThreadId id;
+	Tcl_CreateThread(&id, AgpibSRQNotifier, (ClientData) BrdInfo, );
+    }
+
+    snprintf(channelName, 4 + TCL_INTEGER_SPACE, "gpib%lu", infoPtr->ud);
+
+    /*
+     * TODO: !!!BUG!!!
+     * The only acceptable watch mask is TCL_EXCEPTION.  We are catching
+     * interrupts, not read or write notifications.  Due to how the
+     * channel interface is structured, this extension would be the first
+     * one to every want to set a fileevent script on exception events.
+     * This will require a patch to Tcl to add the third event type.  In
+     * the meantime, we will use TCL_READABLE instead.  It will work while
+     * being semantically incorrect.
+     * 
+     * https://www.tcl-lang.org/man/tcl9.0/TclCmd/fileevent.html
+     *
+     * In the future, if we add the "exception" event to [fileevent],
+     * readable and writable could then become the result of the
+     * non-blocking asyncronous calls ibrda() and ibwrta() which I don't
+     * see as useful.  Splitting a read/write operation into two halves
+     * (initiation and completion) doesn't add value that I can see.  We
+     * already get notifications to read and write from the STB bit mask
+     * [bit 5 for 488.2 MAV and operation complete, respectively].
+     */
+
+    return Tcl_CreateChannel(&AgpibChannelType, channelName,
+	    (ClientData) infoPtr, TCL_READABLE /*TCL_EXCEPTION*/);
+}
 
 
 /* --------------------------------------------------------------------
  *
- * GpibSRQNotifier --
+ * AgpibSRQNotifier --
  *
  *      This is our notifier routine to service interrupts.  It is run
  *      in a thread.
- *
- * 	params --
- *       clientData:
- *             a BrdInfo pointer that contains the board to run on.
  *
  * --------------------------------------------------------------------
  */
 
 static Tcl_ThreadCreateType
-GpibSRQNotifier (
+AgpibSRQNotifier (
     ClientData clientData)      /* The GPIB board to watch */
 {
     BrdInfo *brdInfoPtr = (BrdInfo *) clientData;
@@ -115,7 +163,7 @@ GpibSRQNotifier (
     }
 
     /* Disable automatic polling (The NI 488.2 driver does this by
-     * default, so unset) */
+     * default, so unset) as this is what we are doing here ourselves. */
     GPIB::ibconfig(brdInfoPtr->board_desc, GPIB::IbcAUTOPOLL, 0);
     if (GPIB::ThreadIbsta() & GPIB::ERR) {
         /* Bad error */
@@ -150,10 +198,11 @@ again:
                 infoPtr = FindChannelFromAddr(brdInfoPtr->board_desc,
                         allBusAddresses[i]);
 
-                if ((infoPtr != NULL) && (infoPtr->mask & TCL_EXCEPTION)) {
+                if ((infoPtr != NULL)
+			    && (infoPtr->watchMask & TCL_READABLE /*TCL_EXCEPTION*/)) {
                     /* Active channel found: Push the status byte,
                      * and alert Tcl */
-                    GpibZapTclNotifier(infoPtr, statusList[i]);                    
+                    ZapTclNotifier(infoPtr, statusList[i]);                    
                 } else {
                     /* Rouge device disarmed! */
                     ((void)0);
@@ -168,14 +217,17 @@ done:
 }
 
 static void
-GpibZapTclNotifier (
+ZapTclNotifier (
     GpibInfo *infoPtr,
     short stb)
 {
-    infoPtr->STB_Q.push_front((std::uint8_t)stb);
+    infoPtr->STB_Q.push_back((std::uint8_t)stb);
+
+    // TODO: ready list in target notifier thread.
+    xxx.readyDevices.push_back(infoPtr);
 
     /* Wake the Tcl notifier to service (at least)
-     * this channel's event source. */
+     * this channel type's event source. */
     Tcl_ThreadAlert(infoPtr->thrd);
 }
 
@@ -189,9 +241,10 @@ TranslateGpibErr2Tcl(
 }
 
 static int
-GpibCloseProc (
+AgpibClose2Proc (
     ClientData instanceData,    /* The GPIB device state. */
-    Tcl_Interp *interp)	        /* Unused. */
+    Tcl_Interp *interp,	        /* Unused. */
+    int flag)
 {
     GpibInfo *infoPtr = (GpibInfo *) instanceData;
     int errorCode = TCL_OK;
@@ -201,7 +254,7 @@ GpibCloseProc (
         infoPtr->flags |= AGPIB_CLOSING;
 
         status = GPIB::ibonl(infoPtr->ud, 0);
-        
+
         if (status & GPIB::ERR) {
             Tcl_SetErrno(EIO);
             errorCode = Tcl_GetErrno();
@@ -213,7 +266,7 @@ GpibCloseProc (
 }
 
 static int
-GpibInputProc (
+AgpibInputProc (
     ClientData instanceData,  /* The GPIB device state. */
     char *buf,                /* Where to store data. */
     int toRead,               /* Maximum number of bytes to read. */
@@ -308,14 +361,14 @@ GpibSetOptionProc (
 
 static int
 GpibGetOptionProc (
-    ClientData instanceData,    /* The GPIB device state. */
-    Tcl_Interp *interp,		    /* For error reporting - can be NULL */
-    CONST char *optionName,	    /* Name of the option to
-				                 * retrieve the value for, or
-                 			     * NULL to get all options and
-				                 * their values. */
-    Tcl_DString *dsPtr)		    /* Where to store the computed
-				                 * value; initialized by caller. */
+    ClientData instanceData,	/* The GPIB device state. */
+    Tcl_Interp *interp,		/* For error reporting - can be NULL */
+    CONST char *optionName,	/* Name of the option to
+				 * retrieve the value for, or
+                 		 * NULL to get all options and
+				 * their values. */
+    Tcl_DString *dsPtr)		/* Where to store the computed
+				 * value; initialized by caller. */
 {
     GpibInfo *infoPtr = (GpibInfo *) instanceData;
     short int result;
@@ -395,9 +448,9 @@ GpibWatchProc (
                                  * combination of TCL_READABLE,
                                  * TCL_WRITABLE and TCL_EXCEPTION. */
 {
-    //GpibInfo *infoPtr = (GpibInfo *) instanceData;
+    GpibInfo *infoPtr = (GpibInfo *) instanceData;
 
-    // TODO
+    infoPtr->watchMask = mask;
 }
 
 static int
@@ -410,11 +463,6 @@ GpibBlockProc (
 
     infoPtr->mode = mode;
 
-    if (mode == TCL_MODE_NONBLOCKING) {
-	    GPIB::ibtmo(infoPtr->ud, GPIB::T10us);
-    } else {
-	    GPIB::ibtmo(infoPtr->ud, infoPtr->timeout);
-    }
     return 0;
 }
 
@@ -481,7 +529,8 @@ NewGPIBInfo()
      
     /* add defaults */
     infoPtr->chan = NULL;
-    infoPtr->mode = TCL_MODE_NONBLOCKING;
+    infoPtr->watchMask = 0;
+    infoPtr->mode = TCL_MODE_BLOCKING;
     infoPtr->board_desc = 0;
     infoPtr->ud = 0;
     infoPtr->addr = 0;

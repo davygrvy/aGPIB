@@ -10,21 +10,22 @@ fconfigure $dmm -blocking yes -encoding ascii -translation none
 fconfigure $dmm -term eoi -timeout 300u
 
 # who are we connected to?
-puts $dmm {id?}
+set cmds {id?}
+puts "<DM5010: $cmds"; puts $dmm $cmds
 puts ">DM5010: [read $dmm]"
 
 # Set up the exception script to manage STB from the incoming
-# SRQ/RQS alerts on the bus.
+# SRQ/RQS interrupts on the bus.
 #
 fileevent $dmm exception \
-        [list dmm_stb $dmm [subst -noc {[fconfigure $dmm -laststb]}]]
+        [list dmm_stb $dmm [subst -noc {[fconfigure $dmm -pop_stb]}]]
 
 # Our exception (STB - status byte) handler script
 #
 proc dmm_stb {chan stb} {
 
-    # Split STB into the informational components as described on page 3-24
-    # of the Tektronix DM 5010 manual
+    # Split the STB ubyte into the informational components as described on
+    # page 3-24 of the Tektronix DM 5010 manual
     # https://w140.com/tekwiki/images/5/5e/070-2994-01.pdf
     #
     binary scan [binary format c $stb] B8 bstr
@@ -37,14 +38,14 @@ proc dmm_stb {chan stb} {
     # Ignore $RQS as we already know this will be set, as this is where we
     # came from as an SPOLL response to the SRQ interrupt that has now
     # been cleared.
-    
+
     if {$class} {
         # DEVICE STATUS
-        
+
         # split event bits
         lassign [list [string index $event 0] \
                 [string index $event 1] \
-                [string range 2 end]] trigger readable statusCode
+                [string range $event 2 end]] trigger readable status
 
         # alert for a readable condition interrupt happens here
         if {$readable} {
@@ -55,9 +56,14 @@ proc dmm_stb {chan stb} {
         # fall through ->
 
         # $trigger is available, but serves no purpose for us here.
-        # Maybe untrigger now because we got the readable notification?
+        # Possible use is to untrigger now if we got a readable
+        # notification, too.
 
-        set code [expr "0b$statusCode"]    ;# [scan] doesn't do this
+        # $busy would indicate the message processor is in a busy
+        # state, at the moment, and probably isn't able to receive
+        # a new command right now.
+
+        set code [expr "0b$status"]    ;# [scan] doesn't do this
         switch -- $code {
             0 {
                 #no errors or events
@@ -74,7 +80,7 @@ proc dmm_stb {chan stb} {
             # ask what error
             puts $chan {err?}
             set errCode [string trimright [read $chan] {;}]
-            
+
             switch -- $errCode {
                 101 {set err "Invalid command header"}
                 102 {set err "Header delimiter error"}
@@ -101,13 +107,21 @@ proc dmm_stb {chan stb} {
             puts ">DM5010: ERROR $errCode: $err"
             return
         }
-        
+
         # normal events
+
+        # $busy would indicate the message processor is in a busy
+        # state, at the moment.
+        
         set code [expr "0b$event"]    ;# [scan] doesn't do this
         
         switch -- $code {
-            1 {puts ">DM5010: Power-on initialization detected."; dmm_init $chan}
-            2 {puts ">DM5010: Operation complete."}
+            1 {puts ">DM5010: Power-on detected."; dmm_init $chan}
+            2 {
+                # we could possibly use this to trigger a writable event
+                # as we've just been told the last command finished.
+                puts ">DM5010: Operation complete."
+            }
             3 {puts ">DM5010: You pressed the 'inst id' key."}
             6 {puts ">DM5010: Over-range condition detected."}
             default { puts ">DM5010: Unhandled normal event code: $code" }
@@ -129,6 +143,7 @@ dmm_init $dmm
 if {![info exists tk_version] && ![info exists tcl_service]} {vwait forever}
  
 results will be:
+<DM5010: id?
 >DM5010: ID TEK/DM5010,V79.1 F1.1
 <DM5010: init; acv; dig 4.5; rqs on; opc on; monitor on; mode run
 >DM5010: 3.12u Vrms

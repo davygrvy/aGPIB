@@ -29,21 +29,21 @@
 
 #ifdef __WINDOWS__
 #   ifdef __cplusplus
-namespace GPIB {
-    extern "C" {
-#       include <ni488.h>		/* The National Instruments interface. */
-    }
-}
+	namespace GPIB {
+    	    extern "C" {
+#       	include <ni488.h>		/* The National Instruments interface. */
+    	    }
+ 	}
 #   else
 #       include <ni488.h>		/* The National Instruments interface. */
 #   endif
 #else
 #   ifdef __cplusplus
-namespace GPIB {
-    extern "C" {
-#       include <gpib/ib.h>		/* The Linux-GPIB FOSS interface. */
-    }
-}
+	namespace GPIB {
+    	    extern "C" {
+#       	include <gpib/ib.h>		/* The Linux-GPIB FOSS interface. */
+    	    }
+	}
 #       include <errno.h>
 #   else
 #       include <gpib/ib.h>		/* The Linux-GPIB FOSS interface. */
