@@ -28,10 +28,27 @@
 #ifndef RC_INVOKED
 
 #ifdef __WINDOWS__
-#   include <ni488.h>		/* The National Instruments interface. */
+#   ifdef __cplusplus
+	namespace GPIB {
+    	    extern "C" {
+#       	include <ni488.h>		/* The National Instruments interface. */
+    	    }
+ 	}
+#   else
+#       include <ni488.h>		/* The National Instruments interface. */
+#   endif
 #else
-#   include <gpib/ib.h>		/* The Linux-GPIB FOSS interface. */
-#   include <errno.h>
+#   ifdef __cplusplus
+	namespace GPIB {
+    	    extern "C" {
+#       	include <gpib/ib.h>		/* The Linux-GPIB FOSS interface. */
+    	    }
+	}
+#       include <errno.h>
+#   else
+#       include <gpib/ib.h>		/* The Linux-GPIB FOSS interface. */
+#       include <errno.h>
+#   endif
 #endif
 
 #undef TCL_STORAGE_CLASS
@@ -86,13 +103,15 @@ struct _GpibInfo;
 
 struct _GpibInfo {
     Tcl_Channel chan;   /* us! */
-    int ud;		/* board or device descriptor */
+    int mask;           /* combo of TCL_READABLE, TCL_WRITABLE, or TCL_EXCEPTION */
+    int board_desc;
+    int ud;		/* device descriptor */
     Addr4882_t addr;	/* device address */
     int eot_mode;
     int term;		/* termination character */
     int timeout;
-    short STB_Q;
-    Tcl_ThreadId thrd;	/* notifier thread this channel belongs to */
+    std:queue<std::uint8_t> STB_Q;  /* TODO, needs to be threadsafe */
+    Tcl_ThreadId thrd;	/* origin thread this channel belongs to */
     struct _GpibInfo *next;	/* link chain */
 };
 

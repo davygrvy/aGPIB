@@ -1,6 +1,9 @@
-# aGPIB: Asynchronous General Purpose Interface Buss
+# aGPIB: Asynchronous General Purpose Interface Buss for Tcl
 
-aGPIB is an extension for the Tcl scripting language that provides a standardized
-channel driver for communication with test & measurement equipment on a GPIB buss.
+This extension adds a new channel type to Tool Command Language
+that allows for easy and modern communication with devices
+plugged into a GPIB buss.
 
-It is used in a similar manner to all I/O in Tcl.
+Under development, not usable yet.  pre-alpha status
+
+It is used in a similar manner to all I/O in Tcl.  See code samples on the wiki tab above
