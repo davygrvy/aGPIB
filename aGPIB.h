@@ -12,6 +12,9 @@
 #ifndef INCL_aGPIB_h_
 #define INCL_aGPIB_h_
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 #include "tcl.h"
 
@@ -27,12 +30,10 @@
 
 #ifndef RC_INVOKED
 
-#ifdef __WINDOWS__
+#if defined(__WIN32__)
 #   ifdef __cplusplus
 	namespace GPIB {
-    	    extern "C" {
-#       	include <ni488.h>		/* The National Instruments interface. */
-    	    }
+#           include <ni488.h>		/* The National Instruments interface. */
  	}
 #   else
 #       include <ni488.h>		/* The National Instruments interface. */

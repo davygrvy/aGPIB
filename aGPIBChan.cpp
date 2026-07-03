@@ -37,7 +37,7 @@ static Tcl_ThreadCreateProc       AgpibSRQNotifier;
 void   ZapTclNotifier   (GpibInfo *infoPtr, short stb);
 
 static Tcl_DriverBlockModeProc	    AgpibBlockProc;
-static Tcl_DriverClose2Proc	    AgpibCloseProc;
+static Tcl_DriverClose2Proc	    AgpibClose2Proc;
 static Tcl_DriverInputProc	    AgpibInputProc;
 static Tcl_DriverGetOptionProc	    AgpibGetOptionProc;
 static Tcl_DriverOutputProc	    AgpibOutputProc;
@@ -88,7 +88,7 @@ Agpib_CreateChannel (
 
     // TODO
 
-    infoPtr->ud = GPIB::ibdev(board_index, pad, sad, GPIB::T300ms, 1, 0);
+    infoPtr->ud = GPIB::ibdev(board_index, pad, sad, T300ms, 1, 0);
     if (result == -1) {
 	// TODO
 	return NULL;
@@ -115,14 +115,18 @@ Agpib_CreateChannel (
      * being semantically incorrect.
      * 
      * https://www.tcl-lang.org/man/tcl9.0/TclCmd/fileevent.html
-     *
+     * 
      * In the future, if we add the "exception" event to [fileevent],
      * readable and writable could then become the result of the
      * non-blocking asyncronous calls ibrda() and ibwrta() which I don't
      * see as useful.  Splitting a read/write operation into two halves
      * (initiation and completion) doesn't add value that I can see.  We
-     * already get notifications to read and write from the STB bit mask
-     * [bit 5 for 488.2 MAV and operation complete, respectively].
+     * get actual notifications to read and write from the STB bit mask
+     * [bit 5 for 488.2 MAV and bit 6 for ESB/OPC, respectively].  As a
+     * notification to collect the read bytes with possible error or the
+     * result of the last write call is limited in its usefulness when
+     * we can just do the synchronous calls to Send() and Receive() in
+     * one part.
      */
 
     return Tcl_CreateChannel(&AgpibChannelType, channelName,
@@ -205,7 +209,7 @@ again:
                     ZapTclNotifier(infoPtr, statusList[i]);                    
                 } else {
                     /* Rouge device disarmed! */
-                    ((void)0);
+                    ;
                 }
             }
         }

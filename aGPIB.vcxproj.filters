@@ -9,13 +9,10 @@
   <ItemGroup>
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="aGPIB.cpp" />
-    <ClCompile Include="pch.cpp" />
-    <ClCompile Include="aGPIB.c" />
-    <ClCompile Include="aGPIBChan.c" />
+    <ClCompile Include="aGPIBChan.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="aGPIB.h" />
-    <ClInclude Include="pch.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="agpibDecls.h" />
     <ClInclude Include="agpibPlatDecls.h" />
