@@ -15,7 +15,7 @@
  * --------------------------------------------------------------------
  */
 
-#include "aGPIB.h"
+#include "aGPIB.hpp"
 #include <string.h>
 
 // globals to be moved later
@@ -87,14 +87,13 @@ Agpib_CreateChannel (
     char channelName[4 + TCL_INTEGER_SPACE];
 
     // TODO
+    infoPtr = NewGPIBInfo();
 
     infoPtr->ud = GPIB::ibdev(board_index, pad, sad, T300ms, 1, 0);
     if (result == -1) {
 	// TODO
 	return NULL;
     }
-
-    infoPtr = NewGPIBInfo();
 
 	//TODO start notifier thread, if needed.
     {

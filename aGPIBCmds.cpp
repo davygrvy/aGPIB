@@ -1,4 +1,4 @@
-#include "aGPIB.h"
+#include "aGPIB.hpp"
 
 int
 Agpib_OpenObjCmd (
@@ -20,7 +20,7 @@ Agpib_OpenObjCmd (
     if (chan == (Tcl_Channel) NULL &&
 		(GPIB::ThreadIbsta() & GPIB::ERR))
     {
-	Tcl_SetErrno(EINVAL)
+	Tcl_SetErrno(EINVAL);
         return TCL_ERROR;
     }
 

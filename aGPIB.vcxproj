@@ -247,7 +247,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="aGPIB.h" />
+    <ClInclude Include="aGPIB.hpp" />
     <ClInclude Include="agpibDecls.h" />
     <ClInclude Include="agpibPlatDecls.h" />
     <ClInclude Include="targetver.h" />
@@ -255,7 +255,7 @@
   <ItemGroup>
     <ClCompile Include="aGPIB.cpp" />
     <ClCompile Include="aGPIBChan.cpp" />
-    <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="aGPIBCmds.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="aGPIB.decls" />

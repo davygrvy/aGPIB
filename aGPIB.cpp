@@ -13,7 +13,7 @@
  * --------------------------------------------------------------------
  */
 
-#include "aGPIB.h"
+#include "aGPIB.hpp"
 
 /* Globals */
 int initialized = 0;
@@ -61,7 +61,9 @@ DllMain (HMODULE hModule, DWORD dwReason, LPVOID lpReserved)
 }
 #endif
 
-
+// todo: move these
+Tcl_ObjCmdProc Agpib_OpenObjCmd;
+Tcl_ObjCmdProc Agpib_TriggerObjCmd;
 
 int
 Agpib_Init(Tcl_Interp *interp)
@@ -77,6 +79,8 @@ Agpib_Init(Tcl_Interp *interp)
 	/* TODO */
     }
 
+    Tcl_CreateObjCommand(interp, "agpib::open", Agpib_OpenObjCmd, 0, 0);
+    Tcl_CreateObjCommand(interp, "agpib::trigger", Agpib_TriggerObjCmd, 0, 0);
     Tcl_PkgProvide(interp, "agpib", AGPIB_VERSION);
     return TCL_OK;
 }
