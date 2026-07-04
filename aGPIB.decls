@@ -33,9 +33,7 @@ declare 1 generic {
 }
 
 declare 3 generic {
-    Tcl_Channel Agpib_OpenDevice (Tcl_Interp *interp,
-	CONST char *port, CONST char *host, CONST char *myaddr,
-	CONST char *myport, int async)
+    Tcl_Channel Agpib_CreateChannel (int board_index, int pad, int sad)
 }
 
 ###  Some Win32 error stuff the core is missing.

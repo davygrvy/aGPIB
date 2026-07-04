@@ -95,3 +95,39 @@ Agpib_SafeInit(Tcl_Interp *interp)
     return Agpib_Init(interp);
 }
 
+/* NI library is missing this */
+#if defined(__WIN32__)
+const char* gpib_error_string(int error)
+{
+    static const char* error_descriptions[] =
+    {
+	    "EDVR 0: OS error",
+	    "ECIC 1: Board not controller in charge",
+	    "ENOL 2: No listeners",
+	    "EADR 3: Improper addressing",
+	    "EARG 4: Bad argument",
+	    "ESAC 5: Board not system controller",
+	    "EABO 6: Operation aborted",
+	    "ENEB 7: Non-existant board",
+	    "EDMA 8: DMA error",
+	    "libgpib: Unknown error code 9",
+	    "EOIP 10: IO operation in progress",
+	    "ECAP 11: Capability does not exist",
+	    "EFSO 12: File system error",
+	    "libgpib: Unknown error code 13",
+	    "EBUS 14: Bus error",
+	    "ESTB 15: Lost status byte",
+	    "ESRQ 16: Stuck service request",
+	    "ECNF 17: Configuration file error",
+	    "libgpib: Unknown error code 18",
+	    "libgpib: Unknown error code 19",
+	    "ETAB 20: Table problem",
+    };
+    static const int max_error_code = ETAB;
+
+    if (error < 0 || error > max_error_code)
+	return "libgpib: Unknown error code";
+
+    return error_descriptions[error];
+}
+#endif

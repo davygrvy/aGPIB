@@ -18,10 +18,10 @@ Agpib_OpenObjCmd (
 
     chan = Agpib_CreateChannel(brd, pad, sad);
     if (chan == (Tcl_Channel) NULL &&
-		(GPIB::ThreadIbsta() & GPIB::ERR))
+		(ThreadIbsta() & ERR))
     {
 	Tcl_SetObjResult(interp,
-		Tcl_NewStringObj(GPIB::gpib_error_string(ThreadIberr()),-1));
+		Tcl_NewStringObj(gpib_error_string(ThreadIberr()),-1));
         return TCL_ERROR;
     }
 

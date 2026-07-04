@@ -1,6 +1,6 @@
 /* ----------------------------------------------------------------------
  *
- * aGPIB.h --
+ * aGPIB.hpp --
  *
  *	Main header file for the shared stuff.
  *
@@ -16,7 +16,7 @@
 #include <windows.h>
 #endif
 
-#include "tcl.h"
+#include <tcl.h>
 
 
 #define AGPIB_MAJOR_VERSION	1
@@ -31,13 +31,13 @@
 #ifndef RC_INVOKED
 
 #if defined(__WIN32__)
-    namespace GPIB {
-#       include <ni488.h>		/* The National Instruments interface. */
-    }
+#   include <ni488.h>		/* The National Instruments interface. */
+    const char* gpib_error_string(int iberr);
+    const int gpib_addr_max = 30;
+#   define IbStbRQS		0x40
+#   define GPIB_MAX_NUM_BOARDS	16
 #else
-    namespace GPIB {
-#       include <gpib/ib.h>		/* The Linux-GPIB FOSS interface. */
-    }
+#   include <gpib/ib.h>		/* The Linux-GPIB FOSS interface. */
 #   include <errno.h>
 #endif
 
@@ -99,7 +99,7 @@ struct _GpibInfo {
     int mask;           /* combo of TCL_READABLE, TCL_WRITABLE, or TCL_EXCEPTION */
     int board_desc;
     int ud;		/* device descriptor */
-    GPIB::Addr4882_t addr;	/* device address */
+    Addr4882_t addr;	/* device address */
     int eot_mode;
     int term;		/* termination character */
     int timeout;

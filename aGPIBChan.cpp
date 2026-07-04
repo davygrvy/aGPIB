@@ -150,33 +150,33 @@ AgpibSRQNotifier (
     BrdInfo *brdInfoPtr = (BrdInfo *) clientData;
     GpibInfo *infoPtr;
     short result;
-    GPIB::Addr4882_t allBusAddresses[GPIB::gpib_addr_max+1];
-    short statusList[GPIB::gpib_addr_max+1]; 
+    Addr4882_t allBusAddresses[gpib_addr_max+1];
+    short statusList[gpib_addr_max+1]; 
 
     /* Fill the array with all addresses */
-    for (int i = 0; i < GPIB::gpib_addr_max; i++)
-            allBusAddresses[i] = GPIB::MakeAddr(i+1, 0); /* 1 to 30 */
-    allBusAddresses[GPIB::gpib_addr_max] = GPIB::NOADDR;
+    for (int i = 0; i < gpib_addr_max; i++)
+            allBusAddresses[i] = MakeAddr(i+1, 0); /* 1 to 30 */
+    allBusAddresses[gpib_addr_max] = NOADDR;
 
     /* Set a 3 second timeout */
-    GPIB::ibtmo(brdInfoPtr->board_desc, GPIB::T3s);
-    if (GPIB::ThreadIbsta() & GPIB::ERR) {
+    ibtmo(brdInfoPtr->board_desc, T3s);
+    if (ThreadIbsta() & ERR) {
         /* Bad error */
         goto done;
     }
 
     /* Disable automatic polling (The NI 488.2 driver does this by
      * default, so unset) as this is what we are doing here ourselves. */
-    GPIB::ibconfig(brdInfoPtr->board_desc, GPIB::IbcAUTOPOLL, 0);
-    if (GPIB::ThreadIbsta() & GPIB::ERR) {
+    ibconfig(brdInfoPtr->board_desc, IbcAUTOPOLL, 0);
+    if (ThreadIbsta() & ERR) {
         /* Bad error */
         goto done;
     }
 
 again:
     /* Sleep until timeout or any device pulls the physical SRQ line low */
-    GPIB::WaitSRQ(brdInfoPtr->board_desc, &result);
-    if (GPIB::ThreadIbsta() & GPIB::ERR) {
+    WaitSRQ(brdInfoPtr->board_desc, &result);
+    if (ThreadIbsta() & ERR) {
         /* Bad error or the board went offline (we can't trust result) */
         goto done;
     }
@@ -189,13 +189,13 @@ again:
     case 1: /* SRQ Asserted */
         /* Sweep every address on the bus . This reads and CLEARS the SRQ line
          * for BOTH known and unknown instruments. */
-        GPIB::AllSpoll(brdInfoPtr->board_desc, allBusAddresses, statusList);
+        AllSpoll(brdInfoPtr->board_desc, allBusAddresses, statusList);
 
         /* Process the results */
-        for (int i = 0; allBusAddresses[i] != GPIB::NOADDR; i++) {
+        for (int i = 0; allBusAddresses[i] != NOADDR; i++) {
 
             /* Does this address request service? (Bit 6 / 0x40 RQS Flag) */
-            if (statusList[i] & GPIB::IbStbRQS) {
+            if (statusList[i] & IbStbRQS) {
 
                 /* Resolve to our channel */
                 infoPtr = FindChannelFromAddr(brdInfoPtr->board_desc,
@@ -240,7 +240,7 @@ TranslateGpibErr2Tcl(
     int ibErr)                  /* The GPIB error code */
 {
     Tcl_SetChannelError(chan, Tcl_NewStringObj(
-	        GPIB::gpib_error_string(ibErr), -1));
+	        gpib_error_string(ibErr), -1));
 }
 
 static int
@@ -256,9 +256,9 @@ AgpibClose2Proc (
     if (infoPtr != NULL && flags == 0) {
         infoPtr->flags |= AGPIB_CLOSING;
 
-        status = GPIB::ibonl(infoPtr->ud, 0);
+        status = ibonl(infoPtr->ud, 0);
 
-        if (status & GPIB::ERR) {
+        if (status & ERR) {
             Tcl_SetErrno(EIO);
             errorCode = Tcl_GetErrno();
 	    if (interp != NULL) {
@@ -288,16 +288,16 @@ AgpibInputProc (
     	return -1;
     }
 
-    GPIB::Receive(infoPtr->ud, infoPtr->addr, buf, (long)toRead, GPIB::STOPend/*infoPtr->term*/);
-    status = GPIB::ThreadIbsta();
+    Receive(infoPtr->ud, infoPtr->addr, buf, (long)toRead, STOPend/*infoPtr->term*/);
+    status = ThreadIbsta();
 
-    if (status & GPIB::ERR) {
-	    TranslateGpibErr2Tcl(infoPtr->chan, GPIB::ThreadIberr());
+    if (status & ERR) {
+	    TranslateGpibErr2Tcl(infoPtr->chan, ThreadIberr());
 	    *errorCodePtr = Tcl_GetErrno();
 	    return -1;
     }
  
-    else if (status & GPIB::TIMO) {
+    else if (status & TIMO) {
 	    if (infoPtr->mode == TCL_MODE_BLOCKING) {
 	        Tcl_SetErrno(ETIMEDOUT);
 	    } else {
@@ -308,7 +308,7 @@ AgpibInputProc (
     }
     
     /* return how much we read */
-    return GPIB::ThreadIbcnt();
+    return ThreadIbcnt();
 }
 
 static int
@@ -328,16 +328,16 @@ GpibOutputProc (
 	    return -1;
     }
 
-    GPIB::Send(infoPtr->ud, infoPtr->addr, buf, (long)toWrite, GPIB::DABend/*infoPtr->eot_mode*/);
-    status = GPIB::ThreadIbsta();
+    Send(infoPtr->ud, infoPtr->addr, buf, (long)toWrite, DABend/*infoPtr->eot_mode*/);
+    status = ThreadIbsta();
 
-    if (status & GPIB::ERR) {
-	    TranslateGpibErr2Tcl(infoPtr->chan, GPIB::ThreadIberr());
+    if (status & ERR) {
+	    TranslateGpibErr2Tcl(infoPtr->chan, ThreadIberr());
 	    *errorCodePtr = Tcl_GetErrno();
 	    return -1;
     }
     
-    else if (status & GPIB::TIMO) {
+    else if (status & TIMO) {
 	    if (infoPtr->mode == TCL_MODE_NONBLOCKING) {
 	        Tcl_SetErrno(EWOULDBLOCK);
 	    } else {
@@ -348,7 +348,7 @@ GpibOutputProc (
     }
     
     /* return how much we wrote */
-    return GPIB::ThreadIbcnt();
+    return ThreadIbcnt();
 }
 
 static int
@@ -401,41 +401,41 @@ GpibGetOptionProc (
             Tcl_DStringAppendElement(dsPtr, "-timeout");
         }
         switch (infoPtr->timeout) {
-        case GPIB::TNONE:
+        case TNONE:
             Tcl_DStringAppendElement(dsPtr, "none"); break;
-        case GPIB::T10us:
+        case T10us:
             Tcl_DStringAppendElement(dsPtr, "10us"); break;
-        case GPIB::T30us:
+        case T30us:
             Tcl_DStringAppendElement(dsPtr, "30us"); break;
-        case GPIB::T100us:
+        case T100us:
             Tcl_DStringAppendElement(dsPtr, "100us"); break;
-        case GPIB::T300us:
+        case T300us:
             Tcl_DStringAppendElement(dsPtr, "300us"); break;
-        case GPIB::T1ms:
+        case T1ms:
             Tcl_DStringAppendElement(dsPtr, "1ms"); break;
-        case GPIB::T3ms:
+        case T3ms:
             Tcl_DStringAppendElement(dsPtr, "3ms"); break;
-        case GPIB::T10ms:
+        case T10ms:
             Tcl_DStringAppendElement(dsPtr, "10ms"); break;
-        case GPIB::T30ms:
+        case T30ms:
             Tcl_DStringAppendElement(dsPtr, "30ms"); break;
-        case GPIB::T100ms:
+        case T100ms:
             Tcl_DStringAppendElement(dsPtr, "100ms"); break;
-        case GPIB::T300ms:
+        case T300ms:
             Tcl_DStringAppendElement(dsPtr, "300ms"); break;
-        case GPIB::T1s:
+        case T1s:
             Tcl_DStringAppendElement(dsPtr, "1s"); break;
-        case GPIB::T3s:
+        case T3s:
             Tcl_DStringAppendElement(dsPtr, "3s"); break;
-        case GPIB::T10s:
+        case T10s:
             Tcl_DStringAppendElement(dsPtr, "10s"); break;
-        case GPIB::T30s:
+        case T30s:
             Tcl_DStringAppendElement(dsPtr, "30s"); break;
-        case GPIB::T100s:
+        case T100s:
             Tcl_DStringAppendElement(dsPtr, "100s"); break;
-        case GPIB::T300s:
+        case T300s:
             Tcl_DStringAppendElement(dsPtr, "300s"); break;
-        case GPIB::T1000s:
+        case T1000s:
             Tcl_DStringAppendElement(dsPtr, "1000s"); break;
         }
         if (len > 0) return TCL_OK;
@@ -521,7 +521,7 @@ InitializeGpibSubSystem(Tcl_Interp *interp)
 static GpibInfo *
 FindChannelFromAddr (
     int board_desc,
-    GPIB::Addr4882_t addr)
+    Addr4882_t addr)
 {
     GpibInfo *temp;
 
@@ -553,8 +553,8 @@ NewGPIBInfo()
     infoPtr->board_desc = 0;
     infoPtr->ud = 0;
     infoPtr->addr = 0;
-    infoPtr->eot_mode = GPIB::DABend;
-    infoPtr->timeout = GPIB::T300us;
+    infoPtr->eot_mode = DABend;
+    infoPtr->timeout = T300us;
     infoPtr->STB_Q = 0;   /* TODO, needs to be a threadsafe std::queue<short> or somesuch*/
     infoPtr->thrd = Tcl_GetCurrentThread();
 
