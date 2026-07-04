@@ -1,4 +1,4 @@
-#include "aGPIB.h"
+#include "aGPIB.hpp"
 
 int
 Agpib_OpenObjCmd (

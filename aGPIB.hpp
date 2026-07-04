@@ -12,6 +12,9 @@
 #ifndef INCL_aGPIB_h_
 #define INCL_aGPIB_h_
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 #include "tcl.h"
 
@@ -27,28 +30,15 @@
 
 #ifndef RC_INVOKED
 
-#ifdef __WINDOWS__
-#   ifdef __cplusplus
-	namespace GPIB {
-    	    extern "C" {
-#       	include <ni488.h>		/* The National Instruments interface. */
-    	    }
- 	}
-#   else
+#if defined(__WIN32__)
+    namespace GPIB {
 #       include <ni488.h>		/* The National Instruments interface. */
-#   endif
+    }
 #else
-#   ifdef __cplusplus
-	namespace GPIB {
-    	    extern "C" {
-#       	include <gpib/ib.h>		/* The Linux-GPIB FOSS interface. */
-    	    }
-	}
-#       include <errno.h>
-#   else
+    namespace GPIB {
 #       include <gpib/ib.h>		/* The Linux-GPIB FOSS interface. */
-#       include <errno.h>
-#   endif
+    }
+#   include <errno.h>
 #endif
 
 #undef TCL_STORAGE_CLASS
@@ -99,6 +89,9 @@
 #   endif
 #endif
 
+
+#include <queue>
+
 struct _GpibInfo;
 
 struct _GpibInfo {
@@ -106,11 +99,11 @@ struct _GpibInfo {
     int mask;           /* combo of TCL_READABLE, TCL_WRITABLE, or TCL_EXCEPTION */
     int board_desc;
     int ud;		/* device descriptor */
-    Addr4882_t addr;	/* device address */
+    GPIB::Addr4882_t addr;	/* device address */
     int eot_mode;
     int term;		/* termination character */
     int timeout;
-    std:queue<std::uint8_t> STB_Q;  /* TODO, needs to be threadsafe */
+    std::queue<std::uint8_t> STB_Q;  /* TODO, needs to be threadsafe */
     Tcl_ThreadId thrd;	/* origin thread this channel belongs to */
     struct _GpibInfo *next;	/* link chain */
 };
