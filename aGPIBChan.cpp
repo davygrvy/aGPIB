@@ -102,7 +102,7 @@ Agpib_CreateChannel (
 	Tcl_CreateThread(&id, AgpibSRQNotifier, (ClientData) BrdInfo, );
     }
 
-    snprintf(channelName, 4 + TCL_INTEGER_SPACE, "gpib%lu", infoPtr->ud);
+    snprintf(channelName, 4 + TCL_INTEGER_SPACE, "gpib%u", infoPtr->ud);
 
     /*
      * TODO: !!!BUG!!!
@@ -244,13 +244,13 @@ static int
 AgpibClose2Proc (
     ClientData instanceData,    /* The GPIB device state. */
     Tcl_Interp *interp,	        /* Unused. */
-    int flag)
+    int flags)
 {
     GpibInfo *infoPtr = (GpibInfo *) instanceData;
     int errorCode = TCL_OK;
     int status;
 
-    if (infoPtr != NULL) {
+    if (infoPtr != NULL && flags == 0) {
         infoPtr->flags |= AGPIB_CLOSING;
 
         status = GPIB::ibonl(infoPtr->ud, 0);
@@ -258,6 +258,10 @@ AgpibClose2Proc (
         if (status & GPIB::ERR) {
             Tcl_SetErrno(EIO);
             errorCode = Tcl_GetErrno();
+	    if (interp != NULL) {
+		Tcl_SetObjResult(interp,
+			Tcl_NewStringObj(Tcl_ErrnoMsg(errorCode),-1));
+	    }
         }
 
     }
@@ -463,6 +467,18 @@ GpibBlockProc (
 
     infoPtr->mode = mode;
 
+    if (mode == TCL_MODE_NONBLOCKING) {
+	/* Non-blocking is invalid */
+
+	/* 
+	 * All calls to Send()/Receive() address the bus directly and perform
+	 * the operation and block until complete.
+	 * 
+	 * We won't be using ibwrta()/ibrda() as they don't seem to add value
+	 * for us by splitting initiation and completion.
+	 */
+	return EINVAL;
+    }
     return 0;
 }
 

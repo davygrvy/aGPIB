@@ -14,6 +14,10 @@ set cmds {id?}
 puts "<DM5010: $cmds"; puts $dmm $cmds
 puts ">DM5010: [read $dmm]"
 
+proc bgerror {message} {
+    puts "background error in handler script: $message"
+}
+
 # Set up the exception script to manage STB from the incoming
 # SRQ/RQS interrupts on the bus.
 #
@@ -114,7 +118,6 @@ proc dmm_stb {chan stb} {
         # state, at the moment.
         
         set code [expr "0b$event"]    ;# [scan] doesn't do this
-        
         switch -- $code {
             1 {puts ">DM5010: Power-on detected."; dmm_init $chan}
             2 {
@@ -138,7 +141,6 @@ proc dmm_init {chan} {
 }
 
 dmm_init $dmm
-
 
 if {![info exists tk_version] && ![info exists tcl_service]} {vwait forever}
  
