@@ -17,15 +17,6 @@
 #   include <errno.h>
 #endif
 
-#if TCL_MAJOR_VERSION < 9
-    typedef int Tcl_Size;
-#   define TCL_SIZE_MAX          INT_MAX
-#   define TCL_SIZE_MODIFIER     ""
-#   define Tcl_GetSizeIntFromObj Tcl_GetIntFromObj
-#   define Tcl_NewSizeIntObj     Tcl_NewIntObj
-#   define TCL_AUTO_LENGTH (-1)
-#endif
-
 
 #include <queue>
 

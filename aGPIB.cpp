@@ -14,9 +14,6 @@
  */
 
 #include "aGPIBInt.hpp"
-//#define TCL_STORAGE_CLASS DLLEXPORT
-
-
 
 /* A mess of stuff to make sure we get a good binary. */
 #if defined(__WIN32__) && defined(_MSC_VER)
