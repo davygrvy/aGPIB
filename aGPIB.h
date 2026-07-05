@@ -36,22 +36,6 @@
 
 #ifndef RC_INVOKED
 
-#if TCL_MAJOR_VERSION < 9
-#define Tcl_Size int
-#endif
-
-#if defined(__WIN32__)
-#   include <ni4882.h>		/* The National Instruments interface. */
-
-    /* Add some things that are missing */
-    const char* gpib_error_string(int iberr);
-    const int gpib_addr_max = 30;
-#   define IbStbRQS		0x40
-#   define GPIB_MAX_NUM_BOARDS	16
-#else
-#   include <gpib/ib.h>		/* The Linux-GPIB FOSS interface. */
-#   include <errno.h>
-#endif
 
 #undef TCL_STORAGE_CLASS
 #ifdef BUILD_agpib

@@ -78,7 +78,7 @@ Agpib_OpenObjCmd (
     Tcl_RegisterChannel(interp, chan);
 
     Tcl_SetObjResult(interp,
-	    Tcl_NewStringObj(Tcl_GetChannelName(chan), -1));
+	    Tcl_NewStringObj(Tcl_GetChannelName(chan), TCL_AUTO_LENGTH));
     return TCL_OK;
 }
 

@@ -214,7 +214,7 @@ again:
 
                 if ((infoPtr != NULL)
 #if TCL_MAJOR_VERSION < 9
-			&& (infoPtr->watchMask & TCL_READABLE)) {
+                        && (infoPtr->watchMask & TCL_READABLE)) {
 #else
                         && (infoPtr->watchMask & TCL_EXCEPTION)) {
 #endif
@@ -255,7 +255,7 @@ TranslateGpibErr2Tcl(
     int ibErr)                  /* The GPIB error code */
 {
     Tcl_SetChannelError(chan, Tcl_NewStringObj(
-	        gpib_error_string(ibErr), -1));
+	        gpib_error_string(ibErr), TCL_AUTO_LENGTH));
 }
 
 static int
@@ -278,7 +278,7 @@ AgpibClose2Proc (
             errorCode = Tcl_GetErrno();
 	    if (interp != NULL) {
 		Tcl_SetObjResult(interp,
-			Tcl_NewStringObj(Tcl_ErrnoMsg(errorCode),-1));
+			Tcl_NewStringObj(Tcl_ErrnoMsg(errorCode), TCL_AUTO_LENGTH));
 	    }
         }
 
