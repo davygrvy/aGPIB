@@ -1,4 +1,18 @@
+#ifndef INCL_aGPIBInt_h_
+#define INCL_aGPIBInt_h_
+
 #include "aGPIB.h"
+
+#undef TCL_STORAGE_CLASS
+#ifdef BUILD_agpib
+#   define TCL_STORAGE_CLASS DLLEXPORT
+#else
+#   ifdef USE_IOCP_STUBS
+#	define TCL_STORAGE_CLASS
+#   else
+#	define TCL_STORAGE_CLASS DLLIMPORT
+#   endif
+#endif
 
 #include <queue>
 
@@ -18,3 +32,8 @@ struct _GpibInfo {
 typedef struct _GpibInfo GpibInfo;
 
 #include "aGPIBIntDecls.h"
+
+#undef TCL_STORAGE_CLASS
+#define TCL_STORAGE_CLASS DLLIMPORT
+
+#endif /* #ifndef INCL_aGPIBInt_h_ */

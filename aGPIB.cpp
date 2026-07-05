@@ -14,6 +14,8 @@
  */
 
 #include "aGPIBInt.hpp"
+//#define TCL_STORAGE_CLASS DLLEXPORT
+
 
 
 /* A mess of stuff to make sure we get a good binary. */

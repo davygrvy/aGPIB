@@ -120,8 +120,8 @@
 #endif
 
 
-//#undef TCL_STORAGE_CLASS
-//#define TCL_STORAGE_CLASS DLLIMPORT
+#undef TCL_STORAGE_CLASS
+#define TCL_STORAGE_CLASS DLLIMPORT
 
 #endif  /* #ifndef RC_INVOKED */
 #endif /* #ifndef INCL_aGPIB_h_ */
