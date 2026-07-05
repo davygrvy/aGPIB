@@ -15,14 +15,14 @@
  * ----------------------------------------------------------------------
  */
 
-#ifndef INCL_aGPIB_hpp_
-#define INCL_aGPIB_hpp_
+#ifndef INCL_aGPIB_h_
+#define INCL_aGPIB_h_
+
+#include <tcl.h>
 
 #ifdef _WIN32
 #include <windows.h>
 #endif
-
-#include <tcl.h>
 
 
 #define AGPIB_MAJOR_VERSION	1
@@ -36,8 +36,12 @@
 
 #ifndef RC_INVOKED
 
+#if TCL_MAJOR_VERSION < 9
+#define Tcl_Size int
+#endif
+
 #if defined(__WIN32__)
-#   include <ni488.h>		/* The National Instruments interface. */
+#   include <ni4882.h>		/* The National Instruments interface. */
 
     /* Add some things that are missing */
     const char* gpib_error_string(int iberr);
@@ -116,8 +120,8 @@
 #endif
 
 
-#undef TCL_STORAGE_CLASS
-#define TCL_STORAGE_CLASS DLLIMPORT
+//#undef TCL_STORAGE_CLASS
+//#define TCL_STORAGE_CLASS DLLIMPORT
 
 #endif  /* #ifndef RC_INVOKED */
-#endif /* #ifndef INCL_agpib_hpp_ */
+#endif /* #ifndef INCL_aGPIB_h_ */

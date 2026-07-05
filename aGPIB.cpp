@@ -92,7 +92,7 @@ Agpib_SafeInit(Tcl_Interp *interp)
 }
 
 
-/* The NI library on windows is missing this */
+/* The NI library on Windows is missing this */
 #if defined(__WIN32__)
 const char* gpib_error_string(int error)
 {

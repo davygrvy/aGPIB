@@ -73,7 +73,8 @@ typedef struct {
 } BrdInfo;
 
 int
-InitializeGpibSubSystem(Tcl_Interp* interp)
+InitializeGpibSubSystem(
+    Tcl_Interp* interp)
 {
     /* TODO */
 
@@ -124,19 +125,22 @@ Agpib_CreateChannel (
      * 
      * In the future, if we add the "exception" event to [fileevent],
      * readable and writable could then become the result of the
-     * non-blocking asyncronous calls ibrda() and ibwrta() which I don't
-     * see as useful.  Splitting a read/write operation into two halves
-     * (initiation and completion) doesn't add value that I can see.  We
-     * get actual notifications to read and write from the STB bit mask
-     * [bit 5 for 488.2 MAV and bit 6 for ESB/OPC, respectively].  As a
-     * notification to collect the read bytes with possible error or the
-     * result of the last write call is limited in its usefulness when
-     * we can just do the synchronous calls to Send() and Receive() in
-     * one part.
+     * asyncronous calls ibrda() and ibwrta() which I don't see as being
+     * particularly useful to us.  Splitting a read/write operation into
+     * two halves (initiation and completion) doesn't add value that I
+     * can see.  With GPIB, We get actual notifications to read and
+     * write from the STB bit mask [bit 5 for 488.2 MAV and bit 6 for
+     * ESB/OPC, respectively].  A notification to collect the read bytes
+     * with possible error or the result of the last write call is
+     * limited in its usefulness as I see it.
      */
-
+#if TCL_MAJOR_VERSION < 9
     return Tcl_CreateChannel(&AgpibChannelType, channelName,
-	    (ClientData) infoPtr, TCL_READABLE /*TCL_EXCEPTION*/);
+	    (ClientData) infoPtr, TCL_READABLE);
+#else
+    return Tcl_CreateChannel(&AgpibChannelType, channelName,
+        (ClientData)infoPtr, TCL_EXCEPTION);
+#endif
 }
 
 
@@ -209,7 +213,11 @@ again:
                         allBusAddresses[i]);
 
                 if ((infoPtr != NULL)
-			    && (infoPtr->watchMask & TCL_READABLE /*TCL_EXCEPTION*/)) {
+#if TCL_MAJOR_VERSION < 9
+			&& (infoPtr->watchMask & TCL_READABLE)) {
+#else
+                        && (infoPtr->watchMask & TCL_EXCEPTION)) {
+#endif
                     /* Active channel found: Push the status byte,
                      * and alert Tcl */
                     ZapTclNotifier(infoPtr, statusList[i]);                    
@@ -330,7 +338,7 @@ GpibOutputProc (
     int status;
 
 
-    if ((infoPtr->flags & AGPIB_CLOSING) || TclInExit()) {
+    if ((infoPtr->flags & AGPIB_CLOSING)) {
 	    *errorCodePtr = ENOTCONN;
 	    return -1;
     }
@@ -746,22 +754,6 @@ void
 GpibThreadExitHandler(ClientData clientData)
 {
    // TODO
-}
-void
-GpibEventSetupProc(ClientData clientData, int flags)
-{
-   // TODO
-}
-void
-GpibEventCheckProc(ClientData clientData, int flags)
-{
-   // TODO
-}
-int
-GpibEventProc(Tcl_Event *evPtr, int flags)
-{
-   // TODO
-   return 0;
 }
 int
 GpibRemovePendingEvents(Tcl_Event *evPtr, ClientData clientData)
