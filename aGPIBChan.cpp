@@ -2,7 +2,7 @@
  *
  * aGPIBChan.cpp --
  *
- * 	'Asynchronous General Purpose Interface Buss' for Tcl.
+ * 	'Asynchronous General Purpose Interface Bus' for Tcl.
  * 
  *	This extension adds a new channel type to Tool Command Language
  * 	that allows for easy and modern communication with devices
@@ -15,11 +15,8 @@
  * --------------------------------------------------------------------
  */
 
-#include "aGPIB.hpp"
+#include "aGPIBInt.hpp"
 #include <string.h>
-
-// globals to be moved later
-static int                  InitializeGpibSubSystem(Tcl_Interp *interp);
 
 
 /* local prototypes */
@@ -31,7 +28,7 @@ static Tcl_EventProc		AgpibEventProc;
 static Tcl_EventDeleteProc	AgpibRemovePendingEvents;
 static Tcl_EventDeleteProc	AgpibRemoveAllPendingEvents;
 
-static GpibInfo *FindChannelFromAddr (int board_desc, GPIB::Addr4882_t address);
+static GpibInfo *FindChannelFromAddr (int board_desc, Addr4882_t address);
 static void TranslateGpibErr2Tcl(Tcl_Channel chan, int ibErr);
 static Tcl_ThreadCreateProc       AgpibSRQNotifier;
 void   ZapTclNotifier   (GpibInfo *infoPtr, short stb);
@@ -72,8 +69,20 @@ static bool shutdown = false;
 
 typedef struct {
     int board_desc;
-    //GPIB::Addr4882_t *addressList[];
+    //Addr4882_t *addressList[];
 } BrdInfo;
+
+int
+InitializeGpibSubSystem(Tcl_Interp* interp)
+{
+    /* TODO */
+
+    //  This is called once per
+    //  Tcl interp loading via 'package require aGPIB'.
+
+    return TCL_OK;
+}
+
 
 Tcl_Channel
 Agpib_CreateChannel (
@@ -89,7 +98,7 @@ Agpib_CreateChannel (
     // TODO
     infoPtr = NewGPIBInfo();
 
-    infoPtr->ud = GPIB::ibdev(board_index, pad, sad, T300ms, 1, 0);
+    infoPtr->ud = ibdev(board_index, pad, sad, T300ms, 1, 0);
     if (result == -1) {
 	// TODO
 	return NULL;
@@ -109,9 +118,7 @@ Agpib_CreateChannel (
      * interrupts, not read or write notifications.  Due to how the
      * channel interface is structured, this extension would be the first
      * one to every want to set a fileevent script on exception events.
-     * This will require a patch to Tcl to add the third event type.  In
-     * the meantime, we will use TCL_READABLE instead.  It will work while
-     * being semantically incorrect.
+     * This will require a patch to Tcl to add the third event type.
      * 
      * https://www.tcl-lang.org/man/tcl9.0/TclCmd/fileevent.html
      * 
@@ -283,7 +290,7 @@ AgpibInputProc (
     *errorCodePtr = TCL_OK;
     int status;
 
-    if ((infoPtr->flags & AGPIB_CLOSING) || TclInExit()) {
+    if ((infoPtr->flags & AGPIB_CLOSING)) {
 	    *errorCodePtr = ENOTCONN;
     	return -1;
     }
@@ -504,18 +511,6 @@ GpibThreadActionProc (
             infoPtr->thrd = NULL;
             break;
     }
-}
-
-int
-InitializeGpibSubSystem(Tcl_Interp *interp)
-{
-    /* TODO */
-
-    //  Nothing really do here, actually.  This is called once per
-    //  Tcl interp loading via 'package require agpib'.
-    //  Dynamic loading of ni488.dll could happen here on windows, I guess
-
-    return TCL_OK;
 }
 
 static GpibInfo *

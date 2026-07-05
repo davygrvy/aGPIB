@@ -2,7 +2,7 @@
  *
  * aGPIB.cpp --
  *
- * 	'Asynchronous General Purpose Interface Buss' for Tcl.
+ * 	'Asynchronous General Purpose Interface Bus' for Tcl.
  * 
  *	This extension adds a new channel type to Tool Command Language
  * 	that allows for easy communication with devices plugged into a
@@ -13,10 +13,8 @@
  * --------------------------------------------------------------------
  */
 
-#include "aGPIB.hpp"
+#include "aGPIBInt.hpp"
 
-/* Globals */
-int initialized = 0;
 
 /* A mess of stuff to make sure we get a good binary. */
 #if defined(__WIN32__) && defined(_MSC_VER)
@@ -38,6 +36,7 @@ int initialized = 0;
 #   endif
 #   pragma comment (lib, "user32.lib")
 #   pragma comment (lib, "kernel32.lib")
+#   pragma comment (lib, "ni4882.obj")   /* not an import library :) */
 #endif
 
 
@@ -61,9 +60,6 @@ DllMain (HMODULE hModule, DWORD dwReason, LPVOID lpReserved)
 }
 #endif
 
-// todo: move these
-Tcl_ObjCmdProc Agpib_OpenObjCmd;
-Tcl_ObjCmdProc Agpib_TriggerObjCmd;
 
 int
 Agpib_Init(Tcl_Interp *interp)
@@ -74,16 +70,16 @@ Agpib_Init(Tcl_Interp *interp)
     }
 #endif
 
-    if (!initialized) {
-	initialized = 1;
-	/* TODO */
+    if (TCL_ERROR == InitializeGpibSubSystem(interp)) {
+	return TCL_ERROR;
     }
 
-    Tcl_CreateObjCommand(interp, "agpib::open", Agpib_OpenObjCmd, 0, 0);
-    Tcl_CreateObjCommand(interp, "agpib::trigger", Agpib_TriggerObjCmd, 0, 0);
-    Tcl_PkgProvide(interp, "agpib", AGPIB_VERSION);
+    Tcl_CreateObjCommand(interp, "aGPIB::open", Agpib_OpenObjCmd, 0, 0);
+    Tcl_CreateObjCommand(interp, "aGPIB::trigger", Agpib_TriggerObjCmd, 0, 0);
+    Tcl_PkgProvide(interp, "aGPIB", AGPIB_VERSION);
     return TCL_OK;
 }
+
 
 /*
  * Until told by someone else that this isn't correct, GPIB communication
@@ -95,7 +91,8 @@ Agpib_SafeInit(Tcl_Interp *interp)
     return Agpib_Init(interp);
 }
 
-/* NI library is missing this */
+
+/* The NI library on windows is missing this */
 #if defined(__WIN32__)
 const char* gpib_error_string(int error)
 {

@@ -12,10 +12,11 @@
     <ClCompile Include="aGPIBCmds.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="aGPIB.hpp" />
-    <ClInclude Include="targetver.h" />
-    <ClInclude Include="agpibDecls.h" />
-    <ClInclude Include="agpibPlatDecls.h" />
+    <ClInclude Include="aGPIB.h" />
+    <ClInclude Include="aGPIBDecls.h" />
+    <ClInclude Include="aGPIBIntDecls.h" />
+    <ClInclude Include="TclHash.hpp" />
+    <ClInclude Include="aGPIBInt.hpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="aGPIB.decls" />

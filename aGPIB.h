@@ -2,6 +2,12 @@
  *
  * aGPIB.hpp --
  *
+ * 	'Asynchronous General Purpose Interface Bus' for Tcl.
+ * 
+ *	This extension adds a new channel type to Tool Command Language
+ * 	that allows for easy communication with devices plugged into a
+ *	GPIB bus.  Linux and Windows friendly.
+
  *	Main header file for the shared stuff.
  *
  * ----------------------------------------------------------------------
@@ -9,8 +15,8 @@
  * ----------------------------------------------------------------------
  */
 
-#ifndef INCL_aGPIB_h_
-#define INCL_aGPIB_h_
+#ifndef INCL_aGPIB_hpp_
+#define INCL_aGPIB_hpp_
 
 #ifdef _WIN32
 #include <windows.h>
@@ -32,6 +38,8 @@
 
 #if defined(__WIN32__)
 #   include <ni488.h>		/* The National Instruments interface. */
+
+    /* Add some things that are missing */
     const char* gpib_error_string(int iberr);
     const int gpib_addr_max = 30;
 #   define IbStbRQS		0x40
@@ -90,39 +98,12 @@
 #endif
 
 
-#include <queue>
-
-struct _GpibInfo;
-
-struct _GpibInfo {
-    Tcl_Channel chan;   /* us! */
-    int mask;           /* combo of TCL_READABLE, TCL_WRITABLE, or TCL_EXCEPTION */
-    int board_desc;
-    int ud;		/* device descriptor */
-    Addr4882_t addr;	/* device address */
-    int eot_mode;
-    int term;		/* termination character */
-    int timeout;
-    std::queue<std::uint8_t> STB_Q;  /* TODO, needs to be threadsafe */
-    Tcl_ThreadId thrd;	/* origin thread this channel belongs to */
-    struct _GpibInfo *next;	/* link chain */
-};
-
-typedef struct _GpibInfo GpibInfo;
-
 /*
  * Include the public function declarations that are accessible via the
  * stubs table.
  */
 
-#include "agpibDecls.h"
-
-/*
- * Include platform specific public function declarations that are
- * accessible via the stubs table.
- */
-
-#include "agpibPlatDecls.h"
+#include "aGPIBDecls.h"
 
 
 #ifdef USE_AGPIB_STUBS
@@ -139,4 +120,4 @@ typedef struct _GpibInfo GpibInfo;
 #define TCL_STORAGE_CLASS DLLIMPORT
 
 #endif  /* #ifndef RC_INVOKED */
-#endif /* #ifndef INCL_agpib_h_ */
+#endif /* #ifndef INCL_agpib_hpp_ */

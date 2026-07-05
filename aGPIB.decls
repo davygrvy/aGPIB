@@ -14,12 +14,12 @@
 library agpib
 
 # Define the agpib interface with several sub interfaces:
-#     agpibPlat	   - platform specific public
-#     agpibInt	   - generic private
-#     agpibPlatInt - platform specific private
+#     aGPIBPlat	   - platform specific public
+#     aGPIBInt	   - generic private
+#     aGPIBPlatInt - platform specific private
 
-interface agpib
-hooks {agpibInt}
+interface aGPIB
+hooks {aGPIBInt}
 
 # Declare each of the functions in the public Tcl interface.  Note that
 # an index should never be reused for a different function in order to
@@ -32,25 +32,23 @@ declare 1 generic {
     int Agpib_SafeInit (Tcl_Interp *interp)
 }
 
-declare 3 generic {
+declare 2 generic {
     Tcl_Channel Agpib_CreateChannel (int board_index, int pad, int sad)
 }
 
-###  Some Win32 error stuff the core is missing.
-
-declare 0 win {
-    CONST char *Tcl_WinErrId (void)
-}
-declare 1 win {
-    CONST char *Tcl_WinErrMsg (void)
-}
-declare 2 win {
-    CONST char *Tcl_WinError (Tcl_Interp *interp)
+declare 3 generic {
+    int Agpib_OpenObjCmd (ClientData notUsed, Tcl_Interp *interp,
+	Tcl_Size objc, Tcl_Obj *CONST objv[])
 }
 
-interface agpibInt
+declare 4 generic {
+    int Agpib_TriggerObjCmd (ClientData notUsed, Tcl_Interp *interp,
+	Tcl_Size objc, Tcl_Obj *CONST objv[])
+}
+
+interface aGPIBInt
 
 declare 0 generic {
-    Tcl_Obj * DecodeIpSockaddr (SocketInfo *info, LPSOCKADDR addr)
+    int InitializeGpibSubSystem(Tcl_Interp *interp)
 }
 
