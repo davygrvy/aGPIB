@@ -1,4 +1,11 @@
-# use Tcl style guide
+# EditorConfig is awesome: https://editorconfig.org
+root = true
+
+# Use Tcl style guide
+[*.{c,cpp,h,hpp,vc,tcl}]
+charset = latin1
 indent_style = tab
 indent_size = 4
 tab_width = 8
+trim_trailing_whitespace = true
+insert_final_newline = true
