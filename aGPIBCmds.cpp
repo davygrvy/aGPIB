@@ -9,6 +9,14 @@
  * 	a GPIB bus.  Linux and Windows friendly.
  *
  *	This file contains the commands provided to Tcl.
+ * 
+ * --------------------------------------------------------------------
+ *
+ * Copyright (c) David Gravereaux <davygrvy@pobox.com>
+ *
+ * See the file "license.terms" for information on usage and
+ * redistribution of this file, and for a DISCLAIMER OF ALL
+ * WARRANTIES.
  *
  * --------------------------------------------------------------------
  * RCS: @(#) $Id: $

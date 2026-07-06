@@ -8,6 +8,16 @@
  * 	that allows for easy communication with devices plugged into a
  *	GPIB bus.  Linux and Windows friendly.
  *
+ *	This file contains the "main" of the extension.
+ *
+ * --------------------------------------------------------------------
+ *
+ * Copyright (c) David Gravereaux <davygrvy@pobox.com>
+ *
+ * See the file "license.terms" for information on usage and
+ * redistribution of this file, and for a DISCLAIMER OF ALL
+ * WARRANTIES.
+ *
  * --------------------------------------------------------------------
  * RCS: @(#) $Id: $
  * --------------------------------------------------------------------
@@ -83,12 +93,12 @@ Agpib_Init(Tcl_Interp *interp)
 
 /*
  * Until told by someone else that this isn't correct, GPIB communication
- * is not protected.
+ * is protected.
  */
 int
 Agpib_SafeInit(Tcl_Interp *interp)
 {
-    return Agpib_Init(interp);
+    return TCL_ERROR;
 }
 
 

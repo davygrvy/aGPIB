@@ -11,6 +11,14 @@
  *	This file defines the channel interface to Tcl.
  *
  * --------------------------------------------------------------------
+ *
+ * Copyright (c) David Gravereaux <davygrvy@pobox.com>
+ *
+ * See the file "license.terms" for information on usage and
+ * redistribution of this file, and for a DISCLAIMER OF ALL
+ * WARRANTIES.
+ *
+* --------------------------------------------------------------------
  * RCS: @(#) $Id: $
  * --------------------------------------------------------------------
  */
@@ -20,18 +28,21 @@
 
 
 /* local prototypes */
-static Tcl_ExitProc		AgpibExitHandler;
-static Tcl_ExitProc		AgpibThreadExitHandler;
-static Tcl_EventSetupProc	AgpibEventSetupProc;
-static Tcl_EventCheckProc	AgpibEventCheckProc;
-static Tcl_EventProc		AgpibEventProc;
-static Tcl_EventDeleteProc	AgpibRemovePendingEvents;
-static Tcl_EventDeleteProc	AgpibRemoveAllPendingEvents;
+static Tcl_ExitProc		    AgpibExitHandler;
+static Tcl_ExitProc		    AgpibThreadExitHandler;
+static Tcl_EventSetupProc	    AgpibEventSetupProc;
+static Tcl_EventCheckProc	    AgpibEventCheckProc;
+static Tcl_EventProc		    AgpibEventProc;
+static Tcl_EventDeleteProc	    AgpibRemovePendingEvents;
+static Tcl_EventDeleteProc	    AgpibRemoveAllPendingEvents;
 
-static GpibInfo *FindChannelFromAddr (int board_desc, Addr4882_t address);
-static void TranslateGpibErr2Tcl(Tcl_Channel chan, int ibErr);
-static Tcl_ThreadCreateProc       AgpibSRQNotifier;
-void   ZapTclNotifier   (GpibInfo *infoPtr, short stb);
+static GpibInfo *		    FindChannelFromAddr (int board_desc,
+					    Addr4882_t address);
+static void			    TranslateGpibErr2Tcl(Tcl_Channel chan,
+					    int ibErr);
+static Tcl_ThreadCreateProc	    AgpibSRQNotifier;
+void				    ZapTclNotifier (GpibInfo *infoPtr,
+					    short stb);
 
 static Tcl_DriverBlockModeProc	    AgpibBlockProc;
 static Tcl_DriverClose2Proc	    AgpibClose2Proc;
@@ -149,7 +160,7 @@ Agpib_CreateChannel (
  * AgpibSRQNotifier --
  *
  *      This is our notifier routine to service interrupts.  It is run
- *      in a thread.
+ *      in a thread, one per board.
  *
  * --------------------------------------------------------------------
  */

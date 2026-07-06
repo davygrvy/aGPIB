@@ -1,3 +1,28 @@
+/* --------------------------------------------------------------------
+ *
+ * aGPIBInt.hpp --
+ *
+ * 	'Asynchronous General Purpose Interface Bus' for Tcl.
+ *
+ *	This extension adds a new channel type to Tool Command Language
+ * 	that allows for easy communication with devices plugged into
+ * 	a GPIB bus.  Linux and Windows friendly.
+ *
+ *	This file contains the internal shared interface.
+ *
+ * --------------------------------------------------------------------
+ *
+ * Copyright (c) David Gravereaux <davygrvy@pobox.com>
+ *
+ * See the file "license.terms" for information on usage and
+ * redistribution of this file, and for a DISCLAIMER OF ALL
+ * WARRANTIES.
+ *
+ * --------------------------------------------------------------------
+ * RCS: @(#) $Id: $
+ * --------------------------------------------------------------------
+ */
+
 #ifndef INCL_aGPIBInt_h_
 #define INCL_aGPIBInt_h_
 
