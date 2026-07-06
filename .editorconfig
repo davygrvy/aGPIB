@@ -1,0 +1,4 @@
+# use Tcl style guide
+indent_style = tab
+indent_size = 4
+tab_width = 8
