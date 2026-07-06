@@ -1,7 +1,7 @@
 # EditorConfig is awesome: https://editorconfig.org
 root = true
 
-# Use Tcl style guide
+# Use Tcl style guide  https://wiki.tcl-lang.org/page/Tcl+Style+Guide
 [*.{c,cpp,h,hpp,vc,tcl}]
 charset = latin1
 indent_style = tab
