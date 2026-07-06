@@ -46,6 +46,11 @@ declare 4 generic {
 	Tcl_Size objc, Tcl_Obj *CONST objv[])
 }
 
+declare 5 generic {
+    int Agpib_ClearObjCmd (ClientData notUsed, Tcl_Interp *interp,
+	Tcl_Size objc, Tcl_Obj *CONST objv[])
+}
+
 interface aGPIBInt
 
 declare 0 generic {

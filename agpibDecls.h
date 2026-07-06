@@ -54,6 +54,13 @@ TCL_EXTERN(int)		Agpib_TriggerObjCmd _ANSI_ARGS_((ClientData notUsed,
 				Tcl_Interp * interp, Tcl_Size objc, 
 				Tcl_Obj *CONST objv[]));
 #endif
+#ifndef Agpib_ClearObjCmd_TCL_DECLARED
+#define Agpib_ClearObjCmd_TCL_DECLARED
+/* 5 */
+TCL_EXTERN(int)		Agpib_ClearObjCmd _ANSI_ARGS_((ClientData notUsed, 
+				Tcl_Interp * interp, Tcl_Size objc, 
+				Tcl_Obj *CONST objv[]));
+#endif
 
 typedef struct AGPIBStubHooks {
     struct AGPIBIntStubs *aGPIBIntStubs;
@@ -68,6 +75,7 @@ typedef struct AGPIBStubs {
     Tcl_Channel (*agpib_CreateChannel) _ANSI_ARGS_((int board_index, int pad, int sad)); /* 2 */
     int (*agpib_OpenObjCmd) _ANSI_ARGS_((ClientData notUsed, Tcl_Interp * interp, Tcl_Size objc, Tcl_Obj *CONST objv[])); /* 3 */
     int (*agpib_TriggerObjCmd) _ANSI_ARGS_((ClientData notUsed, Tcl_Interp * interp, Tcl_Size objc, Tcl_Obj *CONST objv[])); /* 4 */
+    int (*agpib_ClearObjCmd) _ANSI_ARGS_((ClientData notUsed, Tcl_Interp * interp, Tcl_Size objc, Tcl_Obj *CONST objv[])); /* 5 */
 } AGPIBStubs;
 TCL_EXTERNC AGPIBStubs *aGPIBStubsPtr;
 
@@ -96,6 +104,10 @@ TCL_EXTERNC AGPIBStubs *aGPIBStubsPtr;
 #ifndef Agpib_TriggerObjCmd
 #define Agpib_TriggerObjCmd \
 	(aGPIBStubsPtr->agpib_TriggerObjCmd) /* 4 */
+#endif
+#ifndef Agpib_ClearObjCmd
+#define Agpib_ClearObjCmd \
+	(aGPIBStubsPtr->agpib_ClearObjCmd) /* 5 */
 #endif
 
 #endif /* defined(USE_AGPIB_STUBS) && !defined(USE_AGPIB_STUB_PROCS) */

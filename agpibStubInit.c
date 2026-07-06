@@ -36,6 +36,7 @@ AGPIBStubs aGPIBStubs = {
     Agpib_CreateChannel, /* 2 */
     Agpib_OpenObjCmd, /* 3 */
     Agpib_TriggerObjCmd, /* 4 */
+    Agpib_ClearObjCmd, /* 5 */
 };
 
 /* !END!: Do not edit above this line. */

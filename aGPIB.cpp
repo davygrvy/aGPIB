@@ -75,6 +75,7 @@ Agpib_Init(Tcl_Interp *interp)
 
     Tcl_CreateObjCommand(interp, "aGPIB::open", Agpib_OpenObjCmd, 0, 0);
     Tcl_CreateObjCommand(interp, "aGPIB::trigger", Agpib_TriggerObjCmd, 0, 0);
+    Tcl_CreateObjCommand(interp, "aGPIB::clear", Agpib_ClearObjCmd, 0, 0);
     Tcl_PkgProvide(interp, "aGPIB", AGPIB_VERSION);
     return TCL_OK;
 }

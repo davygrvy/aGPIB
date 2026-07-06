@@ -31,6 +31,9 @@ Agpib_OpenObjCmd (
 	OPEN_BRD, OPEN_PAD, OPEN_SAD
     };
     Tcl_Channel chan;
+    int brd = 0, pad = 0, sad = 0;
+
+
 
 
     chan = Agpib_CreateChannel(brd, pad, sad);
@@ -88,6 +91,16 @@ Agpib_TriggerObjCmd (
     Tcl_Interp *interp,			/* Current interpreter. */
     Tcl_Size objc,			/* Number of arguments. */
     Tcl_Obj *CONST objv[])		/* Argument objects. */
+{
+    return TCL_ERROR;
+}
+
+int
+Agpib_ClearObjCmd(
+    ClientData notUsed,			/* Not used. */
+    Tcl_Interp* interp,			/* Current interpreter. */
+    Tcl_Size objc,			/* Number of arguments. */
+    Tcl_Obj* CONST objv[])		/* Argument objects. */
 {
     return TCL_ERROR;
 }
