@@ -12,7 +12,7 @@
  *
  * --------------------------------------------------------------------
  *
- * Copyright (c) David Gravereaux <davygrvy@pobox.com>
+ * Copyright (c) 2026 David Gravereaux <davygrvy@pobox.com>
  *
  * See the file "license.terms" for information on usage and
  * redistribution of this file, and for a DISCLAIMER OF ALL
@@ -149,6 +149,7 @@ Agpib_CreateChannel (
     return Tcl_CreateChannel(&AgpibChannelType, channelName,
 	    (ClientData) infoPtr, TCL_READABLE);
 #else
+    /* TIP #758: allow TCL_EXCEPTION as a watch mask */
     return Tcl_CreateChannel(&AgpibChannelType, channelName,
         (ClientData)infoPtr, TCL_EXCEPTION);
 #endif
@@ -227,6 +228,7 @@ again:
 #if TCL_MAJOR_VERSION < 9
                         && (infoPtr->watchMask & TCL_READABLE)) {
 #else
+			/* TIP #758: allow TCL_EXCEPTION as a watch mask */
                         && (infoPtr->watchMask & TCL_EXCEPTION)) {
 #endif
                     /* Active channel found: Push the status byte,
@@ -746,7 +748,8 @@ GpibEventProc (
     }
 
     if (readyMask) {
-        Tcl_NotifyChannel(infoPtr->channel, readyMask);
+	/* TIP #758: allow TCL_EXCEPTION as a watch mask */
+	Tcl_NotifyChannel(infoPtr->channel, readyMask);
     } else {
         /* This was a useless queue.  I want to know why! */
         __asm nop;

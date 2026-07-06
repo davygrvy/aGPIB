@@ -13,7 +13,7 @@
  *
  * --------------------------------------------------------------------
  *
- * Copyright (c) David Gravereaux <davygrvy@pobox.com>
+ * Copyright (c) 2026 David Gravereaux <davygrvy@pobox.com>
  * 
  * See the file "license.terms" for information on usage and
  * redistribution of this file, and for a DISCLAIMER OF ALL
