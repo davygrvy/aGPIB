@@ -92,18 +92,18 @@ public:
 	const std::size_t current_tail = tail_.load(std::memory_order_acquire);
 	const std::size_t current_head = head_.load(std::memory_order_acquire);
 
-	// Unsigned overflow math perfectly handles index wrapping
-	if (current_tail >= current_head) {
-	    return current_tail - current_head;
+	// If a race causes head to appear greater than tail, the queue is effectively empty
+	if (current_head >= current_tail) {
+	    return 0;
 	}
 
-	// This handles the edge case if head wraps past zero before tail does
+	// Pure mathematical distance between monotonically increasing indexes
 	return current_tail - current_head;
     }
 
-    // Helper to quickly check if empty
     bool empty() const noexcept {
-	return size() == 0;
+	// Checking equality directly is faster and safer than evaluating size()
+	return head_.load(std::memory_order_relaxed) == tail_.load(std::memory_order_relaxed);
     }
 
 private:
