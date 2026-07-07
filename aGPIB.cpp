@@ -69,6 +69,8 @@ DllMain (HMODULE hModule, DWORD dwReason, LPVOID lpReserved)
 }
 #endif
 
+/* make lazy link as this is only directly used here */
+extern AGPIBStubs aGPIBStubs;
 
 int
 Agpib_Init(Tcl_Interp *interp)
@@ -86,7 +88,7 @@ Agpib_Init(Tcl_Interp *interp)
     Tcl_CreateObjCommand(interp, "aGPIB::open", Agpib_OpenObjCmd, 0, 0);
     Tcl_CreateObjCommand(interp, "aGPIB::trigger", Agpib_TriggerObjCmd, 0, 0);
     Tcl_CreateObjCommand(interp, "aGPIB::clear", Agpib_ClearObjCmd, 0, 0);
-    Tcl_PkgProvide(interp, "aGPIB", AGPIB_VERSION);
+    Tcl_PkgProvideEx(interp, "aGPIB", AGPIB_VERSION, (ClientData) &aGPIBStubs);
     return TCL_OK;
 }
 

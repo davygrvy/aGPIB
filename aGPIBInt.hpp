@@ -43,7 +43,7 @@
 #endif
 
 
-#include <queue>
+#include <aGPIBQueue.hpp>
 
 struct _GpibInfo {
     Tcl_Channel chan;   /* us! */
@@ -54,7 +54,7 @@ struct _GpibInfo {
     int eot_mode;
     int term;		/* termination character */
     int timeout;
-    std::queue<std::uint8_t> STB_Q;  /* TODO, needs to be threadsafe */
+    SPSCQueue<std::uint8_t, 16> STB_Q;
     Tcl_ThreadId thrd;	/* origin thread this channel belongs to */
 };
 typedef struct _GpibInfo GpibInfo;

@@ -18,6 +18,7 @@
     <ClInclude Include="aGPIBIntDecls.h" />
     <ClInclude Include="TclHash.hpp" />
     <ClInclude Include="aGPIBInt.hpp" />
+    <ClInclude Include="aGPIBQueue.hpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="aGPIB.decls" />

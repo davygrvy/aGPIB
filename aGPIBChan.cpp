@@ -252,7 +252,7 @@ ZapTclNotifier (
     GpibInfo *infoPtr,
     short stb)
 {
-    infoPtr->STB_Q.push_back((std::uint8_t)stb);
+    infoPtr->STB_Q.push((std::uint8_t)stb);
 
     // TODO: ready list in target notifier thread.
     xxx.readyDevices.push_back(infoPtr);
@@ -542,11 +542,6 @@ FindChannelFromAddr (
     GpibInfo *temp;
 
     /* TODO: this needs work */
-    for (temp = start; temp != NULL; temp = temp->next) {
-        if ((temp->board_desc == board_desc) && (GetPAD(temp->addr) == GetPAD(addr))) {
-            return temp;
-        }
-    }
 
     return NULL;
 }
@@ -556,12 +551,6 @@ NewGPIBInfo()
 {
     GpibInfo *infoPtr = ckalloc(sizeof(GpibInfo));
 
-    /* splice it in */
-    //Tcl_MutexLock()
-    infoPtr->next = start;
-    start = infoPtr;
-    //Tcl_MutexUnlock()
-     
     /* add defaults */
     infoPtr->chan = NULL;
     infoPtr->watchMask = 0;
@@ -571,10 +560,10 @@ NewGPIBInfo()
     infoPtr->addr = 0;
     infoPtr->eot_mode = DABend;
     infoPtr->timeout = T300us;
-    infoPtr->STB_Q = 0;   /* TODO, needs to be a threadsafe std::queue<short> or somesuch*/
+    //infoPtr->STB_Q = 0;
     infoPtr->thrd = Tcl_GetCurrentThread();
 
-    return inforPtr;
+    return infoPtr;
 }
 
 void
