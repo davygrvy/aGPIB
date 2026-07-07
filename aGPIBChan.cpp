@@ -1,4 +1,4 @@
-/* --------------------------------------------------------------------
+/* ----------------------------------------------------------------------
  *
  * aGPIBChan.cpp --
  *
@@ -10,7 +10,7 @@
  * 
  *	This file defines the channel interface to Tcl.
  *
- * --------------------------------------------------------------------
+ * ----------------------------------------------------------------------
  *
  * Copyright (c) 2026 David Gravereaux <davygrvy@pobox.com>
  *
@@ -18,9 +18,9 @@
  * redistribution of this file, and for a DISCLAIMER OF ALL
  * WARRANTIES.
  *
-* --------------------------------------------------------------------
+* -----------------------------------------------------------------------
  * RCS: @(#) $Id: $
- * --------------------------------------------------------------------
+ * ----------------------------------------------------------------------
  */
 
 #include "aGPIBInt.hpp"
@@ -233,7 +233,7 @@ again:
 #endif
                     /* Active channel found: Push the status byte,
                      * and alert Tcl */
-                    ZapTclNotifier(infoPtr, statusList[i]);                    
+                    ZapTclNotifier(infoPtr, statusList[i]);
                 } else {
                     /* Rouge device disarmed! */
                     ;

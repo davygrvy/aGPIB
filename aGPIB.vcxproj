@@ -259,6 +259,7 @@
     <ClCompile Include="aGPIB.cpp" />
     <ClCompile Include="aGPIBChan.cpp" />
     <ClCompile Include="aGPIBCmds.cpp" />
+    <ClCompile Include="aGPIBStubInit.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="aGPIB.decls">
