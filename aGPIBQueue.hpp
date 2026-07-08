@@ -9,7 +9,16 @@
  *	GPIB bus.  Linux and Windows friendly.
  *
  *	This file contains the atomic single-producer single-consumer
- *	FIFO queue.
+ *	FIFO queue as a static sized ring buffer.
+ *
+ *	While operations of a device will be synchronous in nature -- it
+ *	talks then waits for a reply, repeat -- This queue doesn't really
+ *	*need* to have these features, I am doing it anyway for the
+ *	experience as other Tcl channel drivers I work on run free such
+ *	as TCP/IP sockets, etc., and need the full indication of push()
+ *	for flow-control (TCP windowing feedback by not repost a
+ *	replacement overlapped WSARecv).  IOW, when Tcl is being slow
+ *	servicing the incoming data, reflect that back.
  *
  * ----------------------------------------------------------------------
  *
@@ -32,7 +41,7 @@
 template <typename T, std::size_t Capacity>
 class SPSCQueue {
     // Capacity must be a power of two for the fast bitwise mask optimization
-    static_assert((Capacity& (Capacity - 1)) == 0, "Capacity must be a power of 2");
+    static_assert((Capacity & (Capacity - 1)) == 0, "Capacity must be a power of 2");
     static_assert(Capacity >= 2, "Capacity must be at least 2");
 
 public:
