@@ -11,12 +11,12 @@
  *	This file contains the atomic single-producer single-consumer
  *	FIFO queue as a static sized ring buffer.
  *
- *	While operations of a device will be synchronous in nature -- it
- *	talks then waits for a reply, repeat -- This queue doesn't really
- *	*need* to have these features, I am doing it anyway for the
+ *	While operations of a GPIB device is synchronous in nature --
+ *	it talks then waits for a reply, repeat -- This queue doesn't
+ *	really need to have these features, I am doing it anyway for the
  *	experience as other Tcl channel drivers I work on run free such
  *	as TCP/IP sockets, etc., and need the full indication of push()
- *	for flow-control (TCP windowing feedback by not repost a
+ *	for flow-control (TCP windowing feedback to not repost a
  *	replacement overlapped WSARecv).  IOW, when Tcl is being slow
  *	servicing the incoming data, reflect that back.
  *
@@ -54,8 +54,8 @@ public:
 
     // Push an item into the queue (Producer thread only)
     bool push(const T& item) {
-	const std::size_t current_tail = tail_.load(std::memory_order_relaxed);
 	const std::size_t current_head = head_.load(std::memory_order_acquire);
+	const std::size_t current_tail = tail_.load(std::memory_order_relaxed);
 
 	if ((current_tail - current_head) == Capacity) {
 	    return false; // Queue is full
@@ -68,8 +68,8 @@ public:
 
     // Move an item into the queue (Producer thread only)
     bool push(T&& item) {
-	const std::size_t current_tail = tail_.load(std::memory_order_relaxed);
 	const std::size_t current_head = head_.load(std::memory_order_acquire);
+	const std::size_t current_tail = tail_.load(std::memory_order_relaxed);
 
 	if ((current_tail - current_head) == Capacity) {
 	    return false; // Queue is full
@@ -97,9 +97,9 @@ public:
     // Returns the approximate or exact number of entries currently in the queue
     std::size_t size() const noexcept {
 	// Load positions safely.
-	// Use acquire to establish visibility if you need to synchronize data changes.
-	const std::size_t current_tail = tail_.load(std::memory_order_acquire);
+	// Use acquire to establish visibility when you need to synchronize data changes.
 	const std::size_t current_head = head_.load(std::memory_order_acquire);
+	const std::size_t current_tail = tail_.load(std::memory_order_acquire);
 
 	// If a race causes head to appear greater than tail, the queue is effectively empty
 	if (current_head >= current_tail) {
