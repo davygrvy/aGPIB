@@ -1,4 +1,5 @@
-/* ----------------------------------------------------------------------
+/*
+ *----------------------------------------------------------------------
  *
  * aGPIBChan.cpp --
  *
@@ -10,7 +11,7 @@
  * 
  *	This file defines the channel interface to Tcl.
  *
- * ----------------------------------------------------------------------
+ * ---------------------------------------------------------------------
  *
  * Copyright (c) 2026 David Gravereaux <davygrvy@pobox.com>
  *
@@ -18,14 +19,17 @@
  * redistribution of this file, and for a DISCLAIMER OF ALL
  * WARRANTIES.
  *
-* -----------------------------------------------------------------------
+ *----------------------------------------------------------------------
  * RCS: @(#) $Id: $
- * ----------------------------------------------------------------------
+ *----------------------------------------------------------------------
  */
 
 #include "aGPIBInt.hpp"
 #include <string.h>
 
+/* forward reference */
+struct _GpibInfo;
+typedef struct _GpibInfo GpibInfo;
 
 /* local prototypes */
 static Tcl_ExitProc		    AgpibExitHandler;
@@ -42,7 +46,7 @@ static void			    TranslateGpibErr2Tcl(Tcl_Channel chan,
 					    int ibErr);
 static Tcl_ThreadCreateProc	    AgpibSRQNotifier;
 void				    ZapTclNotifier (GpibInfo *infoPtr,
-					    short stb);
+					    std::uint8_t stb);
 
 static Tcl_DriverBlockModeProc	    AgpibBlockProc;
 static Tcl_DriverClose2Proc	    AgpibClose2Proc;
@@ -78,6 +82,36 @@ static GpibInfo *start = NULL;
 static bool shutdown = false;
 
 
+typedef struct ThreadSpecificData {
+    int hasCleanUp;
+    SPSCQueue<GpibInfo *,64> readyChannels;
+} ThreadSpecificData;
+
+static Tcl_ThreadDataKey dataKey;
+
+#ifndef TCL_TSD_INIT
+#define TCL_TSD_INIT(keyPtr) \
+          (ThreadSpecificData*)Tcl_GetThreadData((keyPtr),sizeof(ThreadSpecificData))
+#endif
+
+#include <aGPIBQueue.hpp>
+
+struct _GpibInfo {
+    Tcl_Channel chan;   /* us! */
+    int watchMask;           /* combo of TCL_READABLE, TCL_WRITABLE, or TCL_EXCEPTION */
+    int markedReady;
+    int board_desc;
+    int ud;		/* device descriptor */
+    Addr4882_t addr;	/* device address */
+    int eot_mode;
+    int term;		/* termination character */
+    int timeout;
+    ThreadSpecificData* tsdHome;    /* origin thread specific data */
+    Tcl_ThreadId thrd;		    /* origin thread this channel belongs to */
+    SPSCQueue<std::uint8_t, 16> STB_Q;
+};
+
+
 typedef struct {
     int board_desc;
     //Addr4882_t *addressList[];
@@ -87,14 +121,38 @@ int
 InitializeGpibSubSystem(
     Tcl_Interp* interp)
 {
-    /* TODO */
+    ThreadSpecificData* tsdPtr = TCL_TSD_INIT(&dataKey);
+
+    // use thread exit handler to clean up tsd?
+    if (!tsdPtr->hasCleanUp) {
+	tsdPtr->hasCleanUp = 1;
+	Tcl_CreateThreadExitHandler(..., tsdPtr);
+    }
 
     //  This is called once per
     //  Tcl interp loading via 'package require aGPIB'.
+    // it might be called from different interps in different threads
+    // or different interps in the same thread.
 
     return TCL_OK;
 }
 
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * Agpib_CreateChannel --
+ *
+ *      Entry to create the channel.
+ *
+ * Results:
+ *	The Tcl_Channel.
+ *
+ * Side effects:
+ *	Must be called from the Tcl thread this will be used in.
+ *
+ *----------------------------------------------------------------------
+ */
 
 Tcl_Channel
 Agpib_CreateChannel (
@@ -104,17 +162,21 @@ Agpib_CreateChannel (
 {
     GpibInfo *infoPtr;
     Tcl_Channel chan;
-    int result;
+    int device;
     char channelName[4 + TCL_INTEGER_SPACE];
+    ThreadSpecificData* tsdPtr = TCL_TSD_INIT(&dataKey);
 
-    // TODO
-    infoPtr = NewGPIBInfo();
-
-    infoPtr->ud = ibdev(board_index, pad, sad, T300ms, 1, 0);
-    if (result == -1) {
+    device = ibdev(board_index, pad, sad, T300ms, 1, 0);
+    if (device == -1) {
 	// TODO
 	return NULL;
     }
+
+    // TODO
+    infoPtr = NewGPIBInfo();
+    infoPtr->tsdHome = tsdPtr;
+    infoPtr->ud = device;
+
 
 	//TODO start notifier thread, if needed.
     {
@@ -145,25 +207,33 @@ Agpib_CreateChannel (
      * with possible error or the result of the last write call is
      * limited in its usefulness as I see it.
      */
-#if TCL_MAJOR_VERSION < 9
+#if (TCL_MAJOR_VERSION < 9) || ((TCL_MAJOR_VERSION == 9) && (TCL_MINOR_VERSION < 2))
     return Tcl_CreateChannel(&AgpibChannelType, channelName,
 	    (ClientData) infoPtr, TCL_READABLE);
 #else
-    /* TIP #758: allow TCL_EXCEPTION as a watch mask */
+    /* TIP #758: allow TCL_EXCEPTION as a usable watch mask */
     return Tcl_CreateChannel(&AgpibChannelType, channelName,
         (ClientData)infoPtr, TCL_EXCEPTION);
 #endif
 }
 
 
-/* --------------------------------------------------------------------
+/*
+ *----------------------------------------------------------------------
  *
  * AgpibSRQNotifier --
  *
  *      This is our notifier routine to service interrupts.  It is run
  *      in a thread, one per board.
  *
- * --------------------------------------------------------------------
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Automatic polling of the bus is replaced by us.  Any devices
+ *	not opened by us are cleared.
+ *
+ *----------------------------------------------------------------------
  */
 
 static Tcl_ThreadCreateType
@@ -225,7 +295,7 @@ again:
                         allBusAddresses[i]);
 
                 if ((infoPtr != NULL)
-#if TCL_MAJOR_VERSION < 9
+#if (TCL_MAJOR_VERSION < 9) || ((TCL_MAJOR_VERSION == 9) && (TCL_MINOR_VERSION < 2))
                         && (infoPtr->watchMask & TCL_READABLE)) {
 #else
 			/* TIP #758: allow TCL_EXCEPTION as a watch mask */
@@ -233,7 +303,7 @@ again:
 #endif
                     /* Active channel found: Push the status byte,
                      * and alert Tcl */
-                    ZapTclNotifier(infoPtr, statusList[i]);
+                    ZapTclNotifier(infoPtr, (std::uint8_t) statusList[i]);
                 } else {
                     /* Rouge device disarmed! */
                     ;
@@ -247,19 +317,66 @@ done:
     TCL_THREAD_CREATE_RETURN;
 }
 
+/*
+ *----------------------------------------------------------------------
+ *
+ * ZapTclNotifier --
+ *
+ *	We cross thread boudaries in here as the producer.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	Tcl's notifier in another thread is awaken, if asleep, to
+ *	service our channel's file handler (the consumer side).
+ *
+ *----------------------------------------------------------------------
+ */
+
 static void
 ZapTclNotifier (
     GpibInfo *infoPtr,
-    short stb)
+    std::uint8_t stb)
 {
-    infoPtr->STB_Q.push((std::uint8_t)stb);
+    ThreadSpecificData* tsdPtr = infoPtr->tsdHome;
+    
+    if (infoPtr->STB_Q.push(stb) == false)
+    {
+	/*
+	 * TODO: what do we do when the queue is full?  Somewhat
+	 * unlikely as operations are synchonrous: talk, wait for
+	 * reply, repeat.
+	 */
+	;
+    }
 
-    // TODO: ready list in target notifier thread.
-    xxx.readyDevices.push_back(infoPtr);
+    /*
+     * If not on the ready list, push it using a thread safe method.
+     */
+    if (std::atomic<int>::fetch_add(infoPtr->markedReady,
+	    std::memory_order_relaxed) == 0)
+    {
+	tsdPtr->readyChannels.push(infoPtr);
+    }
 
-    /* Wake the Tcl notifier to service (at least)
-     * this channel type's event source. */
+    /*
+     * Wake the Tcl notifier to service (at least)
+     * this channel type's event source.
+     */
     Tcl_ThreadAlert(infoPtr->thrd);
+}
+
+GpibInfo *
+FindChannelFromAddr(
+    int board_desc,
+    Addr4882_t addr)
+{
+    GpibInfo* temp = NULL;
+
+    /* TODO: this needs work */
+
+    return temp;
 }
 
 static void
@@ -523,33 +640,21 @@ GpibThreadActionProc (
     switch (action) {
         case TCL_CHANNEL_THREAD_INSERT:
             // Safely assign the new thread owner context
-            infoPtr->thrd = Tcl_GetCurrentThread();
+            infoPtr->tsdHome = Tcl_GetCurrentThread();
             break;
 
         case TCL_CHANNEL_THREAD_REMOVE:
             // Clear out the pointer so background processes 
             // know this thread no longer owns it
-            infoPtr->thrd = NULL;
+            infoPtr->tsdHome = NULL;
             break;
     }
-}
-
-static GpibInfo *
-FindChannelFromAddr (
-    int board_desc,
-    Addr4882_t addr)
-{
-    GpibInfo *temp;
-
-    /* TODO: this needs work */
-
-    return NULL;
 }
 
 GpibInfo *
 NewGPIBInfo()
 {
-    GpibInfo *infoPtr = ckalloc(sizeof(GpibInfo));
+    GpibInfo *infoPtr = (GpibInfo *) ckalloc(sizeof(GpibInfo));
 
     /* add defaults */
     infoPtr->chan = NULL;

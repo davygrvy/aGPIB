@@ -43,22 +43,6 @@
 #endif
 
 
-#include <aGPIBQueue.hpp>
-
-struct _GpibInfo {
-    Tcl_Channel chan;   /* us! */
-    int watchMask;           /* combo of TCL_READABLE, TCL_WRITABLE, or TCL_EXCEPTION */
-    int board_desc;
-    int ud;		/* device descriptor */
-    Addr4882_t addr;	/* device address */
-    int eot_mode;
-    int term;		/* termination character */
-    int timeout;
-    SPSCQueue<std::uint8_t, 16> STB_Q;
-    Tcl_ThreadId thrd;	/* origin thread this channel belongs to */
-};
-typedef struct _GpibInfo GpibInfo;
-
 
 #undef TCL_STORAGE_CLASS
 #ifdef BUILD_agpib
