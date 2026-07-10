@@ -213,7 +213,7 @@ Agpib_CreateChannel (
 #else
     /* TIP #758: allow TCL_EXCEPTION as a usable watch mask */
     return Tcl_CreateChannel(&AgpibChannelType, channelName,
-        (ClientData)infoPtr, TCL_EXCEPTION);
+        (ClientData)infoPtr, TCL_EXCEPTION | TCL_READABLE | TCL_WRITABLE);
 #endif
 }
 
