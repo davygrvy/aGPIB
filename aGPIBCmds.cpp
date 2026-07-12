@@ -41,6 +41,10 @@ Agpib_OpenObjCmd (
     Tcl_Channel chan;
     int brd = 0, pad = 0, sad = 0;
 
+    if (Tcl_GetIndexFromObj(interp, objv[2], openOptions, "asd", 0,
+	    &modeIndex) != TCL_OK) {
+	return TCL_ERROR;
+    }
 
 
 
@@ -62,8 +66,9 @@ Agpib_OpenObjCmd (
      * exactly blocking, but hybrid.
      * 
      * TODO: We won't be using the true asynchronous calls ibwrta()/ibrda()
-     * as they don't seem to add value for us by splitting initiation
-     * and completion.  Trying to set blocking off will return an error.
+     * (at first) as they don't seem to add value for us by splitting
+     * initiation and completion.  Trying to set blocking off will return
+     * an error.
      */
     if (Tcl_SetChannelOption(interp, chan, "-blocking",
 	    "yes") == TCL_ERROR) {

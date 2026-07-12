@@ -53,7 +53,7 @@ public:
 	while (pop(discarded)); // Clean up remaining elements
     }
 
-    // Push an item into the queue (Producer thread only)
+    // Push an lvalue item into the queue (Producer thread only)
     bool push(const T& item) {
 	const std::size_t current_head = head_.load(std::memory_order_acquire);
 	const std::size_t current_tail = tail_.load(std::memory_order_relaxed);
@@ -67,7 +67,7 @@ public:
 	return true;
     }
 
-    // Move an item into the queue (Producer thread only)
+    // Move an rvalue item into the queue (Producer thread only)
     bool push(T&& item) {
 	const std::size_t current_head = head_.load(std::memory_order_acquire);
 	const std::size_t current_tail = tail_.load(std::memory_order_relaxed);

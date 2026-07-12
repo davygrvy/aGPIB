@@ -25,6 +25,7 @@
  */
 
 #include "aGPIBInt.hpp"
+#include <stdint.h>
 #include <string.h>
 
 /* forward reference */
@@ -46,7 +47,7 @@ static void			    TranslateGpibErr2Tcl(Tcl_Channel chan,
 					    int ibErr);
 static Tcl_ThreadCreateProc	    AgpibSRQNotifier;
 void				    ZapTclNotifier (GpibInfo *infoPtr,
-					    std::uint8_t stb);
+					    uint8_t stb);
 
 static Tcl_DriverBlockModeProc	    AgpibBlockProc;
 static Tcl_DriverClose2Proc	    AgpibClose2Proc;
@@ -78,9 +79,9 @@ Tcl_ChannelType AgpibChannelType = {
 };
 
 /* file scope */
-static GpibInfo *start = NULL;
 static bool shutdown = false;
 
+#include <aGPIBQueue.hpp>
 
 typedef struct ThreadSpecificData {
     int hasCleanUp;
@@ -94,12 +95,10 @@ static Tcl_ThreadDataKey dataKey;
           (ThreadSpecificData*)Tcl_GetThreadData((keyPtr),sizeof(ThreadSpecificData))
 #endif
 
-#include <aGPIBQueue.hpp>
-
 struct _GpibInfo {
     Tcl_Channel chan;   /* us! */
     int watchMask;           /* combo of TCL_READABLE, TCL_WRITABLE, or TCL_EXCEPTION */
-    int markedReady;
+    std::atomic<int> markedReady;
     int board_desc;
     int ud;		/* device descriptor */
     Addr4882_t addr;	/* device address */
@@ -108,8 +107,14 @@ struct _GpibInfo {
     int timeout;
     ThreadSpecificData* tsdHome;    /* origin thread specific data */
     Tcl_ThreadId thrd;		    /* origin thread this channel belongs to */
-    SPSCQueue<std::uint8_t, 16> STB_Q;
+    SPSCQueue<uint8_t, 16> STB_Q;
 };
+
+typedef struct GpibEvent {
+    Tcl_Event header;		/* Information that is standard for
+				 * all events. */
+    GpibInfo *infoPtr;
+} GpibEvent;
 
 
 typedef struct {
@@ -303,7 +308,7 @@ again:
 #endif
                     /* Active channel found: Push the status byte,
                      * and alert Tcl */
-                    ZapTclNotifier(infoPtr, (std::uint8_t) statusList[i]);
+                    ZapTclNotifier(infoPtr, (uint8_t) statusList[i]);
                 } else {
                     /* Rouge device disarmed! */
                     ;
@@ -337,7 +342,7 @@ done:
 static void
 ZapTclNotifier (
     GpibInfo *infoPtr,
-    std::uint8_t stb)
+    uint8_t stb)
 {
     ThreadSpecificData* tsdPtr = infoPtr->tsdHome;
     
@@ -346,16 +351,18 @@ ZapTclNotifier (
 	/*
 	 * TODO: what do we do when the queue is full?  Somewhat
 	 * unlikely as operations are synchonrous: talk, wait for
-	 * reply, repeat.
+	 * reply, repeat.  Multiple SRQs in quick succession
+	 * possible before others in front serviced?  I don't think
+	 * so.
 	 */
 	;
     }
 
     /*
-     * If not on the ready list, push it using a thread safe method.
+     * If not on the ready list, push it.
      */
-    if (std::atomic<int>::fetch_add(infoPtr->markedReady,
-	    std::memory_order_relaxed) == 0)
+    if (infoPtr->markedReady.exchange(1,
+	    std::memory_order_release) == 0)
     {
 	tsdPtr->readyChannels.push(infoPtr);
     }
@@ -694,7 +701,7 @@ GpibEventSetupProc (
     ClientData clientData,
     int flags)
 {
-    //ThreadSpecificData *tsdPtr = InitSockets();
+    ThreadSpecificData *tsdPtr = TCL_TSD_INIT(&dataKey);
     Tcl_Time blockTime = {0, 0};
 
     if (!(flags & TCL_FILE_EVENTS)) {
@@ -706,10 +713,9 @@ GpibEventSetupProc (
      * wait state.  This function call is very inexpensive.
      */
 
-     /* TODO */
-    //if (IocpLLIsNotEmpty(tsdPtr->readySockets)) {
-    //    Tcl_SetMaxBlockTime(&blockTime);
-    //}
+    if (!tsdPtr->readyChannels.empty()) {
+        Tcl_SetMaxBlockTime(&blockTime);
+    }
 }
 
 /*
@@ -725,10 +731,9 @@ GpibEventCheckProc (
     ClientData clientData,
     int flags)
 {
-#if 0
-    ThreadSpecificData *tsdPtr = InitSockets();
-    SocketInfo *infoPtr;
-    SocketEvent *evPtr;
+    ThreadSpecificData *tsdPtr = TCL_TSD_INIT(&dataKey);
+    GpibInfo *infoPtr;
+    GpibEvent *evPtr;
     int evCount;
 
     if (!(flags & TCL_FILE_EVENTS)) {
@@ -736,57 +741,14 @@ GpibEventCheckProc (
         return;
     }
 
-    /*
-     * Sockets that are EOF, but not yet closed, are considered readable.
-     * Because Tcl historically requires that EOF channels shall still
-     * fire readable and writable events until closed and our alert
-     * semantics are such that we'll never get repeat notifications after
-     * EOF, we place this poll condition here.
-     */
+    while (tsdPtr->readyChannels.pop(infoPtr)) {
+        infoPtr->markedReady.exchange(0, std::memory_order_acquire);
 
-    /* TODO: evCount = IocpLLGetCount(tsdPtr->deadSockets); */
-
-    /*
-     * Do we have any jobs to queue?  Take a snapshot of the count as
-     * of now.
-     */
-
-    evCount = IocpLLGetCount(tsdPtr->readySockets);
-
-    while (evCount--) {
-        EnterCriticalSection(&tsdPtr->readySockets->lock);
-        infoPtr = IocpLLPopFront(tsdPtr->readySockets,
-                IOCP_LL_NOLOCK | IOCP_LL_NODESTROY, 0);
-        /*
-         * Flop the markedReady toggle.  This is used to improve event
-         * loop efficiency to avoid unneccesary events being queued into
-         * the readySockets list.
-         */
-        if (infoPtr) InterlockedExchange(&infoPtr->markedReady, 0);
-        LeaveCriticalSection(&tsdPtr->readySockets->lock);
-
-        /*
-         * Safety check. Somehow the count of what is and what actually
-         * is, is less (!?)..  whatever...  
-         */
-        if (!infoPtr) continue;
-
-        /*
-         * The socket isn't ready to be serviced.  accept() in the Tcl
-         * layer hasn't happened yet while reads on the new socket are
-         * coming in or the socket is in the middle of doing an async
-         * close.
-         */
-        if (infoPtr->channel == NULL) {
-            continue;
-        }
-
-        evPtr = (SocketEvent *) ckalloc(sizeof(SocketEvent));
+        evPtr = (GpibEvent*) ckalloc(sizeof(GpibEvent));
         evPtr->header.proc = GpibEventProc;
         evPtr->infoPtr = infoPtr;
         Tcl_QueueEvent((Tcl_Event *) evPtr, TCL_QUEUE_TAIL);
     }
-#endif
 }
 
 /*
@@ -803,8 +765,7 @@ GpibEventProc (
     int flags)                      /* Flags that indicate what events to
                                      * handle, such as TCL_FILE_EVENTS. */
 {
-#if 0
-    SocketInfo *infoPtr = ((SocketEvent *)evPtr)->infoPtr;
+    GpibInfo *infoPtr = ((GpibEvent*)evPtr)->infoPtr;
     int readyMask = 0;
 
     if (!(flags & TCL_FILE_EVENTS)) {
@@ -812,22 +773,19 @@ GpibEventProc (
         return 0;
     }
 
-    /*
-     * If an accept is ready, pop one only.  There might be more,
-     * but this would be greedy with regards to the event loop.
-     */
-    if (infoPtr->readyAccepts != NULL) {
-        IocpAcceptOne(infoPtr);
-        return 1;
+    /* TIP #758: allow TCL_EXCEPTION as a watch mask */
+    if (infoPtr->watchMask & TCL_EXCEPTION &&
+	    !infoPtr->STB_Q.empty()) {
+	readyMask |= TCL_EXCEPTION;
     }
 
     /*
-     * If there is at least one entry on the infoPtr->llPendingRecv list,
+     * If there is at least one entry on the infoPtr->completedIbrda list,
      * and the watch mask is set to notify for readable events, the channel
      * is readable.
      */
     if (infoPtr->watchMask & TCL_READABLE &&
-            IocpLLIsNotEmpty(infoPtr->llPendingRecv)) {
+            !infoPtr->completedIbrda.empty()) {
         readyMask |= TCL_READABLE;
     }
 
@@ -836,20 +794,15 @@ GpibEventProc (
      * outstanding sends are less than the resource cap allowed for
      * this socket, the channel is writable.
      */
-    if (infoPtr->watchMask & TCL_WRITABLE && infoPtr->llPendingRecv
-            && infoPtr->outstandingSends < infoPtr->outstandingSendCap) {
+    if (infoPtr->watchMask & TCL_WRITABLE &&
+	    !infoPtr->completedIbwra.empty()) {
         readyMask |= TCL_WRITABLE;
     }
 
     if (readyMask) {
-	/* TIP #758: allow TCL_EXCEPTION as a watch mask */
-	Tcl_NotifyChannel(infoPtr->channel, readyMask);
-    } else {
-        /* This was a useless queue.  I want to know why! */
-        __asm nop;
+	Tcl_NotifyChannel(infoPtr->chan, readyMask);
     }
     return 1;
-#endif
 }
 
 
