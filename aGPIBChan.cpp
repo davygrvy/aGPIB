@@ -84,7 +84,7 @@ static bool shutdown = false;
 #include <aGPIBQueue.hpp>
 
 typedef struct ThreadSpecificData {
-    int hasCleanUp;
+    Tcl_ThreadId threadId;
     SPSCQueue<GpibInfo *,64> readyChannels;
 } ThreadSpecificData;
 
@@ -98,6 +98,7 @@ static Tcl_ThreadDataKey dataKey;
 struct _GpibInfo {
     Tcl_Channel chan;   /* us! */
     int watchMask;           /* combo of TCL_READABLE, TCL_WRITABLE, or TCL_EXCEPTION */
+    int mode;
     std::atomic<int> markedReady;
     int board_desc;
     int ud;		/* device descriptor */
@@ -108,6 +109,8 @@ struct _GpibInfo {
     ThreadSpecificData* tsdHome;    /* origin thread specific data */
     Tcl_ThreadId thrd;		    /* origin thread this channel belongs to */
     SPSCQueue<uint8_t, 16> STB_Q;
+    SPSCQueue<uint8_t, 16> completedIbrda;  //todo
+    SPSCQueue<uint8_t, 16> completedIbwra;  //todo
 };
 
 typedef struct GpibEvent {
@@ -128,16 +131,13 @@ InitializeGpibSubSystem(
 {
     ThreadSpecificData* tsdPtr = TCL_TSD_INIT(&dataKey);
 
-    // use thread exit handler to clean up tsd?
-    if (!tsdPtr->hasCleanUp) {
-	tsdPtr->hasCleanUp = 1;
-	Tcl_CreateThreadExitHandler(..., tsdPtr);
+    /* per thread init */
+    if (tsdPtr->threadId == 0) {
+	tsdPtr->threadId = Tcl_GetCurrentThread();
+	Tcl_CreateEventSource(AgpibEventSetupProc, AgpibEventCheckProc, NULL);
+	Tcl_CreateThreadExitHandler(AgpibThreadExitHandler, tsdPtr);
+	//tsdPtr->readySockets = IocpLLCreate();
     }
-
-    //  This is called once per
-    //  Tcl interp loading via 'package require aGPIB'.
-    // it might be called from different interps in different threads
-    // or different interps in the same thread.
 
     return TCL_OK;
 }
@@ -166,7 +166,6 @@ Agpib_CreateChannel (
     int sad)
 {
     GpibInfo *infoPtr;
-    Tcl_Channel chan;
     int device;
     char channelName[4 + TCL_INTEGER_SPACE];
     ThreadSpecificData* tsdPtr = TCL_TSD_INIT(&dataKey);
@@ -220,6 +219,7 @@ Agpib_CreateChannel (
     return Tcl_CreateChannel(&AgpibChannelType, channelName,
         (ClientData)infoPtr, TCL_EXCEPTION | TCL_READABLE | TCL_WRITABLE);
 #endif
+
 }
 
 
@@ -371,7 +371,7 @@ ZapTclNotifier (
      * Wake the Tcl notifier to service (at least)
      * this channel type's event source.
      */
-    Tcl_ThreadAlert(infoPtr->thrd);
+    Tcl_ThreadAlert(tsdPtr->threadId);
 }
 
 GpibInfo *
@@ -647,7 +647,7 @@ GpibThreadActionProc (
     switch (action) {
         case TCL_CHANNEL_THREAD_INSERT:
             // Safely assign the new thread owner context
-            infoPtr->tsdHome = Tcl_GetCurrentThread();
+            infoPtr->tsdHome = TCL_TSD_INIT(&dataKey);
             break;
 
         case TCL_CHANNEL_THREAD_REMOVE:
@@ -690,14 +690,14 @@ DeleteGPIBInfo(GpibInfo *infoPtr)
 
 /*
  *-----------------------------------------------------------------------
- * GpibEventSetupProc --
+ * AgpibEventSetupProc --
  *
  *  Happens before the event loop is to wait in the notifier.
  *
  *-----------------------------------------------------------------------
  */
 static void
-GpibEventSetupProc (
+AgpibEventSetupProc (
     ClientData clientData,
     int flags)
 {
@@ -720,14 +720,14 @@ GpibEventSetupProc (
 
 /*
  *-----------------------------------------------------------------------
- * GpibEventCheckProc --
+ * AgpibEventCheckProc --
  *
  *  Happens after the notifier has waited.
  *
  *-----------------------------------------------------------------------
  */
 static void
-GpibEventCheckProc (
+AgpibEventCheckProc (
     ClientData clientData,
     int flags)
 {
@@ -745,7 +745,7 @@ GpibEventCheckProc (
         infoPtr->markedReady.exchange(0, std::memory_order_acquire);
 
         evPtr = (GpibEvent*) ckalloc(sizeof(GpibEvent));
-        evPtr->header.proc = GpibEventProc;
+        evPtr->header.proc = AgpibEventProc;
         evPtr->infoPtr = infoPtr;
         Tcl_QueueEvent((Tcl_Event *) evPtr, TCL_QUEUE_TAIL);
     }
@@ -753,14 +753,14 @@ GpibEventCheckProc (
 
 /*
  *-----------------------------------------------------------------------
- * GpibEventProc --
+ * AgpibEventProc --
  *
  *  Tcl's event loop is now servicing this.
  *
  *-----------------------------------------------------------------------
  */
 static int
-GpibEventProc (
+AgpibEventProc (
     Tcl_Event *evPtr,               /* Event to service. */
     int flags)                      /* Flags that indicate what events to
                                      * handle, such as TCL_FILE_EVENTS. */
@@ -772,7 +772,12 @@ GpibEventProc (
         /* Don't be greedy. */
         return 0;
     }
-
+#if (TCL_MAJOR_VERSION < 9) || ((TCL_MAJOR_VERSION == 9) && (TCL_MINOR_VERSION < 2))
+    if (infoPtr->watchMask & TCL_READABLE &&
+	    !infoPtr->STB_Q.empty()) {
+	readyMask |= TCL_READABLE;
+    }
+#else
     /* TIP #758: allow TCL_EXCEPTION as a watch mask */
     if (infoPtr->watchMask & TCL_EXCEPTION &&
 	    !infoPtr->STB_Q.empty()) {
@@ -798,7 +803,7 @@ GpibEventProc (
 	    !infoPtr->completedIbwra.empty()) {
         readyMask |= TCL_WRITABLE;
     }
-
+#endif
     if (readyMask) {
 	Tcl_NotifyChannel(infoPtr->chan, readyMask);
     }
@@ -807,23 +812,23 @@ GpibEventProc (
 
 
 void
-GpibExitHandler(ClientData clientData)
+AgpibExitHandler(ClientData clientData)
 {
    // TODO
 }
 void
-GpibThreadExitHandler(ClientData clientData)
+AgpibThreadExitHandler(ClientData clientData)
 {
    // TODO
 }
 int
-GpibRemovePendingEvents(Tcl_Event *evPtr, ClientData clientData)
+AgpibRemovePendingEvents(Tcl_Event *evPtr, ClientData clientData)
 {
     // TODO
     return 0;
 }
 int
-GpibRemoveAllPendingEvents(Tcl_Event *evPtr, ClientData clientData)
+AgpibRemoveAllPendingEvents(Tcl_Event *evPtr, ClientData clientData)
 {
     // TODO
     return 0;
